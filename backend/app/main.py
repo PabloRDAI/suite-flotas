@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.routers import (
+    asignaciones,
     auth,
     centros,
     lecturas_km,
@@ -32,6 +33,7 @@ app.include_router(vehiculos.router)
 app.include_router(lecturas_km.router)
 app.include_router(vencimientos.router)
 app.include_router(personas.router)
+app.include_router(asignaciones.router)
 
 
 @app.get("/salud", tags=["sistema"])

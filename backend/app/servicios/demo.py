@@ -9,7 +9,8 @@ Todo es inventado: nombre de empresa, marcas, matrículas y emails
 (@demo.example.com, dominio reservado para ejemplos). Las fechas son relativas a
 "hoy", así que siempre hay vencimientos en rojo y en ámbar para enseñar.
 
-Incluye 30 personas con su documentación (PER-01, PER-02). Pendiente de ampliar
+Incluye 30 personas con su documentación (PER-01, PER-02) y sus asignaciones a
+vehículos con historial (PER-03). Pendiente de ampliar
 cuando existan sus tablas: 6 meses de historial de mantenimiento.
 """
 
@@ -22,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     AplicaA,
+    Asignacion,
     Centro,
     Combustible,
     Empresa,
@@ -37,6 +39,7 @@ from app.models import (
     Vehiculo,
     Vencimiento,
 )
+from app.reglas.asignaciones import avisos_de_documentacion
 from app.reglas.vencimientos import Documento, Semaforo, aptitud_para_salir, semaforo, vigentes
 from app.seguridad import hash_password
 from app.servicios.estado_vehiculo import actualizar_estado
@@ -267,6 +270,38 @@ def planificar_personal(hoy: date, semilla: int = SEMILLA) -> list[PersonaPlan]:
     return plan
 
 
+@dataclass(frozen=True)
+class AsignacionPlan:
+    persona: int  # índice en el plan de personal (los conductores son los primeros)
+    vehiculo: int  # índice en el plan de vehículos
+    desde: date
+    hasta: date | None
+    habitual: bool
+
+
+def planificar_asignaciones(hoy: date, personal: list[PersonaPlan], semilla: int = SEMILLA) -> list[AsignacionPlan]:
+    """Cada conductor es el habitual de un vehículo; 5 vehículos con un habitual anterior
+    ya terminado (historial) y 2 asignaciones temporales (una pasada y una futura).
+
+    Respeta PER-03: ningún vehículo tiene dos habituales solapados.
+    """
+    rng = random.Random(semilla + 2)
+    conductores = [i for i, p in enumerate(personal) if p.puesto == Puesto.CONDUCTOR]
+    plan: list[AsignacionPlan] = []
+    for n, persona in enumerate(conductores):  # conductor n -> vehículo n
+        desde = max(personal[persona].fecha_alta, hoy - timedelta(days=rng.randint(30, 300)))
+        plan.append(AsignacionPlan(persona, n, desde, None, True))
+        if n < 5:  # historial: el habitual anterior de este vehículo, ya terminado
+            anterior = conductores[(n + 10) % len(conductores)]
+            hasta_anterior = desde - timedelta(days=1)
+            desde_anterior = hasta_anterior - timedelta(days=rng.randint(90, 300))
+            plan.append(AsignacionPlan(anterior, n, desde_anterior, hasta_anterior, True))
+    # Temporales: una sustitución pasada y un refuerzo la semana que viene.
+    plan.append(AsignacionPlan(conductores[15], 21, hoy - timedelta(days=40), hoy - timedelta(days=33), False))
+    plan.append(AsignacionPlan(conductores[16], 22, hoy + timedelta(days=7), hoy + timedelta(days=11), False))
+    return plan
+
+
 # --- 2. Guardar en la base de datos ------------------------------------------
 
 
@@ -281,6 +316,8 @@ class ResumenDemo:
     en_ambar: list[str]  # matrículas con algún documento a punto de caducar
     usuarios: list[str]  # emails para hacer login
     personas: int = 0
+    asignaciones: int = 0
+    asignaciones_con_aviso: list[str] = field(default_factory=list)  # "persona → matrícula" con aviso PER-04
     personas_en_rojo: list[str] = field(default_factory=list)  # nombres con documentación caducada
     personas_en_ambar: list[str] = field(default_factory=list)  # nombres con documentación a punto de caducar
 
@@ -300,8 +337,8 @@ def buscar_empresa_demo(db: Session) -> int | None:
 
 def borrar_empresa(db: Session, empresa_id: int) -> None:
     """Borra una empresa y TODOS sus datos, en orden (de las tablas hijas a la empresa)."""
-    # Vencimiento antes que Vehiculo y Persona; Persona antes que Usuario (lo referencia).
-    for modelo in (Vencimiento, LecturaKm, Vehiculo, Persona, TipoVencimiento, TipoVehiculo, Centro, Usuario):
+    # Asignacion y Vencimiento antes que Vehiculo y Persona; Persona antes que Usuario (lo referencia).
+    for modelo in (Asignacion, Vencimiento, LecturaKm, Vehiculo, Persona, TipoVencimiento, TipoVehiculo, Centro, Usuario):
         db.execute(delete(modelo).where(modelo.empresa_id == empresa_id))
     db.execute(delete(Empresa).where(Empresa.id == empresa_id))
 
@@ -348,6 +385,7 @@ def crear_empresa_demo(
     no_aptos: list[str] = []
     en_ambar: list[str] = []
     n_lecturas = n_vencimientos = 0
+    vehiculos_creados: list[Vehiculo] = []
     for p in planificar_demo(hoy):
         vehiculo = Vehiculo(
             empresa_id=eid,
@@ -363,6 +401,7 @@ def crear_empresa_demo(
         )
         db.add(vehiculo)
         db.flush()
+        vehiculos_creados.append(vehiculo)
         db.add_all(LecturaKm(empresa_id=eid, vehiculo_id=vehiculo.id, fecha=f, km=k) for f, k in p.lecturas)
         db.add_all(
             Vencimiento(empresa_id=eid, vehiculo_id=vehiculo.id, tipo_id=tipos_venc[n].id, fecha_caducidad=f)
@@ -390,6 +429,8 @@ def crear_empresa_demo(
     personas_en_ambar: list[str] = []
     plan_personal = planificar_personal(hoy)
     vistos_por_puesto: dict[Puesto, int] = {}
+    personas_creadas: list[Persona] = []
+    documentos_persona: list[list[Documento]] = []
     for pp in plan_personal:
         n_en_puesto = vistos_por_puesto.get(pp.puesto, 0)
         vistos_por_puesto[pp.puesto] = n_en_puesto + 1
@@ -405,6 +446,10 @@ def crear_empresa_demo(
         )
         db.add(persona)
         db.flush()
+        personas_creadas.append(persona)
+        documentos_persona.append(
+            [Documento(tipos_persona[n].id, n, f, tipos_persona[n].dias_aviso, tipos_persona[n].bloquea_salida) for n, f in pp.vencimientos]
+        )
         db.add_all(
             Vencimiento(empresa_id=eid, persona_id=persona.id, tipo_id=tipos_persona[n].id, fecha_caducidad=f)
             for n, f in pp.vencimientos
@@ -415,6 +460,21 @@ def crear_empresa_demo(
             personas_en_rojo.append(pp.nombre)
         elif Semaforo.AMBAR in colores:
             personas_en_ambar.append(pp.nombre)
+
+    # Asignaciones conductor-vehículo con historial (PER-03) y avisos (PER-04).
+    plan_asignaciones = planificar_asignaciones(hoy, plan_personal)
+    asignaciones_con_aviso: list[str] = []
+    for pa in plan_asignaciones:
+        persona, vehiculo = personas_creadas[pa.persona], vehiculos_creados[pa.vehiculo]
+        db.add(
+            Asignacion(
+                empresa_id=eid, persona_id=persona.id, vehiculo_id=vehiculo.id,
+                desde=pa.desde, hasta=pa.hasta, habitual=pa.habitual,
+            )
+        )
+        en_vigor_o_futura = pa.hasta is None or pa.hasta >= hoy
+        if en_vigor_o_futura and avisos_de_documentacion(documentos_persona[pa.persona], max(pa.desde, hoy)):
+            asignaciones_con_aviso.append(f"{persona.nombre} → {vehiculo.matricula}")
 
     db.flush()
     return ResumenDemo(
@@ -429,4 +489,6 @@ def crear_empresa_demo(
         personas=len(plan_personal),
         personas_en_rojo=personas_en_rojo,
         personas_en_ambar=personas_en_ambar,
+        asignaciones=len(plan_asignaciones),
+        asignaciones_con_aviso=asignaciones_con_aviso,
     )

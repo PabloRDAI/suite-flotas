@@ -8,7 +8,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Centro, Empresa, LecturaKm, Persona, RolUsuario, Usuario, Vehiculo
+from app.models import Asignacion, Centro, Empresa, LecturaKm, Persona, RolUsuario, Usuario, Vehiculo
+from app.reglas.asignaciones import AsignacionExistente, Periodo, comprobar_habitual
 from app.reglas.km import Lectura, comprobar_lectura
 from app.servicios.demo import (
     PASSWORD_DEMO,
@@ -16,6 +17,7 @@ from app.servicios.demo import (
     DemoYaExiste,
     crear_empresa_demo,
     email_demo,
+    planificar_asignaciones,
     planificar_demo,
     planificar_personal,
 )
@@ -149,6 +151,32 @@ def test_los_usuarios_demo_estan_enlazados_a_su_persona(db: Session) -> None:
     ).all()
 
     assert dict(enlaces) == {"admin": "otro", "trafico": "trafico", "taller": "mecanico", "conductor": "conductor"}
+
+
+# --- Asignaciones (PER-03, PER-04) -------------------------------------------
+
+
+def test_el_plan_de_asignaciones_cumple_un_habitual_a_la_vez() -> None:
+    """Se comprueba con la MISMA regla que usa la API (comprobar_habitual)."""
+    personal = planificar_personal(HOY)
+    plan = planificar_asignaciones(HOY, personal)
+    ya_vistas: dict[int, list[AsignacionExistente]] = {}
+    for a in plan:
+        periodo = Periodo(a.desde, a.hasta)
+        comprobar_habitual(periodo, a.habitual, ya_vistas.get(a.vehiculo, []))  # lanza excepción si no vale
+        ya_vistas.setdefault(a.vehiculo, []).append(AsignacionExistente("x", periodo, a.habitual))
+        assert personal[a.persona].puesto == "conductor"
+
+
+def test_crea_las_asignaciones_con_historial_y_aviso(db: Session) -> None:
+    r = crear_empresa_demo(db, hoy=HOY)
+
+    assert contar(db, Asignacion, r.empresa_id) == r.asignaciones == 27  # 20 habituales + 5 anteriores + 2 temporales
+    terminadas = db.scalar(
+        select(func.count()).select_from(Asignacion).where(Asignacion.empresa_id == r.empresa_id, Asignacion.hasta < HOY)
+    )
+    assert terminadas == 6  # las 5 habituales anteriores + la temporal pasada
+    assert len(r.asignaciones_con_aviso) == 1  # la conductora con el CAP caducado
 
 
 # --- Realismo de los datos ---------------------------------------------------

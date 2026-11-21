@@ -4,6 +4,7 @@ Importarlos aquí hace que se registren en Base.metadata: así Alembic (env.py)
 y los tests los ven todos con un solo "import app.models".
 """
 
+from app.models.asignacion import Asignacion
 from app.models.centro import Centro, TipoCentro
 from app.models.empresa import Empresa
 from app.models.lectura_km import LecturaKm
@@ -14,6 +15,7 @@ from app.models.vehiculo import Combustible, EstadoVehiculo, TipoVehiculo, Unida
 
 __all__ = [
     "AplicaA",
+    "Asignacion",
     "Centro",
     "Combustible",
     "Empresa",

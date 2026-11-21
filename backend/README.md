@@ -14,12 +14,12 @@ backend/
 │   ├── deps.py        Dependencias: usuario actual (401) y control de roles (403)
 │   ├── schemas.py     Esquemas Pydantic: lo que entra y sale por la API
 │   ├── reglas/        Motor de reglas en Python puro (sin BD): estado_vehiculo.py (FLO-03),
-│   │                  km.py (FLO-05), vencimientos.py (FLO-06/07)
+│   │                  km.py (FLO-05), vencimientos.py (FLO-06/07), asignaciones.py (PER-03/04)
 │   ├── servicios/     Unen las reglas con la BD (p. ej. actualizar_estado del vehículo)
 │   ├── routers/       Endpoints agrupados por área (auth, vehiculos, lecturas_km…)
 │   ├── scripts/       Comandos de línea (crear_admin)
 │   └── models/        Modelos (tablas): empresa, centro, usuario, vehículos, lecturas de km,
-│                      vencimientos y personas
+│                      vencimientos, personas y asignaciones
 │       └── comun.py   Mixins reutilizables (empresa_id, fechas) y columnas de tipo enum
 ├── alembic/           Migraciones de la base de datos
 │   ├── env.py         Conecta Alembic con app.config y app.db.Base
@@ -106,7 +106,8 @@ python -m app.scripts.demo --reiniciar  # la borra y la vuelve a crear (solo la 
 Crea 2 centros, 5 tipos de vehículo, 25 vehículos con ~6 meses de lecturas de km semanales
 (km iniciales coherentes con la antigüedad), tipos de vencimiento de vehículo y de persona,
 vencimientos con casos en rojo (2 vehículos no aptos) y en ámbar, y 30 personas (20 conductores,
-5 mecánicos, 3 de tráfico y 2 de otros puestos) con su documentación, también con casos en rojo y ámbar. Usuarios `admin`, `trafico`, `taller` y `conductor` `@demo.example.com`
+5 mecánicos, 3 de tráfico y 2 de otros puestos) con su documentación, también con casos en rojo y ámbar, y 27 asignaciones
+conductor-vehículo con historial y un aviso de documentación caducada. Usuarios `admin`, `trafico`, `taller` y `conductor` `@demo.example.com`
 con la contraseña `demostracion`. Todo es inventado; los datos son siempre los mismos (semilla
 fija) y las fechas se calculan desde el día en que se ejecuta. El historial de mantenimiento se
 añadirá cuando existan sus tablas.
@@ -166,6 +167,11 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | DELETE | `/personas/{id}` | admin, tráfico | Baja lógica con fecha de baja |
 | GET/POST | `/personas/{id}/vencimientos` | todos / admin, tráfico | Documentos de la persona (permiso, CAP…) con semáforo |
 | DELETE | `/personas/{id}/vencimientos/{venc_id}` | admin, tráfico | Borrar un vencimiento registrado por error |
+| GET | `/vehiculos/{id}/asignaciones` | todos | Historial de conductores del vehículo, con avisos |
+| GET | `/personas/{id}/asignaciones` | todos | Historial de vehículos de la persona, con avisos |
+| POST | `/asignaciones` | admin, tráfico | Asignar conductor/a (habitual o temporal); 409 si hay otro habitual en esas fechas |
+| POST | `/asignaciones/{id}/finalizar` | admin, tráfico | Poner fecha de fin (por defecto, ayer) |
+| DELETE | `/asignaciones/{id}` | admin, tráfico | Borrar una asignación registrada por error |
 
 La matrícula se normaliza al guardar (`"1234 abc"`, `"1234-ABC"` → `"1234ABC"`), así que la regla
 de unicidad no se puede saltar escribiéndola de otra forma. Una matrícula dada de baja sigue ocupada.
@@ -186,6 +192,13 @@ usan la misma tabla, el mismo servicio (`app/servicios/vencimientos.py`) y las m
 **Panel de flota (FLO-04):** `GET /panel` calcula contadores, tabla y alertas sobre la misma lista de
 vehículos activos (los totales coinciden con el listado filtrado) con solo dos consultas a la BD;
 un test comprueba que responde en menos de 1 s con 150 vehículos.
+
+**Asignaciones (PER-03, PER-04):** un vehículo tiene como máximo un conductor habitual a la vez
+(las temporales pueden coincidir). Se comprueba en `app/reglas/asignaciones.py` y, como última
+barrera, con una restricción de exclusión de PostgreSQL (`EXCLUDE USING gist … daterange(desde,
+hasta, '[]') WITH &&`, extensión `btree_gist`). Las asignaciones no se borran al terminar: se
+finalizan con fecha de fin, y así se conserva el historial. Si la documentación imprescindible del
+conductor está caducada, la respuesta incluye `avisos`, pero la asignación se hace igualmente.
 
 **Estado del vehículo (FLO-03, regla 1):** de baja si está inactivo; en taller si tiene una OT
 abierta que inmoviliza; inmovilizado si tiene una avería "inmoviliza" sin OT abierta; si no,

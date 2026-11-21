@@ -247,6 +247,43 @@ class PersonaSalida(BaseModel):
     semaforo: Semaforo = Semaforo.VERDE
 
 
+# --- Asignaciones conductor-vehículo (PER-03, PER-04) ------------------------
+
+
+class AsignacionCrear(EntradaEstricta):
+    persona_id: int
+    vehiculo_id: int
+    desde: date | None = None  # sin fecha: hoy
+    hasta: date | None = None  # sin fecha: hasta nuevo aviso
+    habitual: bool = True
+    notas: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+
+    @model_validator(mode="after")
+    def fechas_en_orden(self) -> "AsignacionCrear":
+        if self.desde and self.hasta and self.hasta < self.desde:
+            raise ValueError("La fecha de fin no puede ser anterior a la de inicio")
+        return self
+
+
+class AsignacionFinalizar(EntradaEstricta):
+    hasta: date | None = None  # sin fecha: ayer (para que la nueva pueda empezar hoy)
+
+
+class AsignacionSalida(BaseModel):
+    id: int
+    persona_id: int
+    persona_nombre: str
+    vehiculo_id: int
+    matricula: str
+    desde: date
+    hasta: date | None
+    habitual: bool
+    notas: str | None
+    vigente: bool  # ¿está en vigor hoy?
+    # PER-04: avisos por documentación caducada del conductor (no bloquean).
+    avisos: list[str]
+
+
 class VehiculoPanel(BaseModel):
     """Un vehículo en el panel, con su aptitud ya calculada."""
 
