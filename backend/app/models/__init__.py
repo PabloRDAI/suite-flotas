@@ -8,9 +8,11 @@ from app.models.centro import Centro, TipoCentro
 from app.models.empresa import Empresa
 from app.models.lectura_km import LecturaKm
 from app.models.usuario import RolUsuario, Usuario
+from app.models.vencimiento import AplicaA, TipoVencimiento, Vencimiento
 from app.models.vehiculo import Combustible, EstadoVehiculo, TipoVehiculo, UnidadCapacidad, Vehiculo
 
 __all__ = [
+    "AplicaA",
     "Centro",
     "Combustible",
     "Empresa",
@@ -19,7 +21,9 @@ __all__ = [
     "RolUsuario",
     "TipoCentro",
     "TipoVehiculo",
+    "TipoVencimiento",
     "UnidadCapacidad",
     "Usuario",
     "Vehiculo",
+    "Vencimiento",
 ]

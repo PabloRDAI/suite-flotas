@@ -11,6 +11,7 @@ from tests.fabricas import cabeceras, crear_centro, crear_empresa, crear_tipo, c
 CATALOGOS = [
     ("/centros", {"nombre": "Cochera Norte", "tipo": "cochera", "direccion": "Calle Ficticia 1"}),
     ("/tipos-vehiculo", {"nombre": "Cisterna", "unidad_capacidad": "kg"}),
+    ("/tipos-vencimiento", {"nombre": "ITV", "aplica_a": "vehiculo", "dias_aviso": 30, "bloquea_salida": True}),
 ]
 
 

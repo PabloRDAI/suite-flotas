@@ -12,7 +12,8 @@ from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, StringConstraints, model_validator
 
-from app.models import Combustible, EstadoVehiculo, RolUsuario, TipoCentro, UnidadCapacidad
+from app.models import AplicaA, Combustible, EstadoVehiculo, RolUsuario, TipoCentro, UnidadCapacidad
+from app.reglas.vencimientos import Semaforo
 
 # --- Tipos reutilizables -----------------------------------------------------
 
@@ -152,6 +153,53 @@ class VehiculoEditar(EntradaEstricta):
         if vaciados:
             raise ValueError(f"Estos campos no pueden quedar vacíos: {', '.join(sorted(vaciados))}")
         return self
+
+
+class TipoVencimientoCrear(EntradaEstricta):
+    """Tipo de documento que caduca (FLO-06). Los plazos los decide la empresa, no el código."""
+
+    nombre: Annotated[Texto, Field(max_length=80)]
+    aplica_a: AplicaA = AplicaA.VEHICULO
+    dias_aviso: Annotated[int, Field(ge=0, le=365)] = 30
+    bloquea_salida: bool = True
+
+
+class TipoVencimientoSalida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nombre: str
+    aplica_a: AplicaA
+    dias_aviso: int
+    bloquea_salida: bool
+    activo: bool
+
+
+class VencimientoCrear(EntradaEstricta):
+    tipo_id: int
+    fecha_caducidad: date
+    notas: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+
+
+class VencimientoSalida(BaseModel):
+    """Un documento con su semáforo ya calculado por el motor de reglas."""
+
+    id: int
+    tipo_id: int
+    tipo_nombre: str
+    fecha_caducidad: date
+    notas: str | None
+    dias_restantes: int  # negativo si ya caducó
+    semaforo: Semaforo
+    vigente: bool  # False si es historial (hay otro del mismo tipo que caduca más tarde)
+
+
+class AptitudSalida(BaseModel):
+    """FLO-07: ¿puede salir el vehículo?"""
+
+    apto: bool
+    motivos: list[str]
+    semaforo: Semaforo  # el peor de su documentación vigente
 
 
 class LecturaKmCrear(EntradaEstricta):

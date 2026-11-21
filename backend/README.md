@@ -13,7 +13,7 @@ backend/
 │   ├── seguridad.py   Hash de contraseñas (Argon2) y tokens de sesión (JWT)
 │   ├── deps.py        Dependencias: usuario actual (401) y control de roles (403)
 │   ├── schemas.py     Esquemas Pydantic: lo que entra y sale por la API
-│   ├── reglas/        Motor de reglas en Python puro (sin BD): p. ej. km.py (FLO-05)
+│   ├── reglas/        Motor de reglas en Python puro (sin BD): km.py (FLO-05), vencimientos.py (FLO-06/07)
 │   ├── routers/       Endpoints agrupados por área (auth, vehiculos, lecturas_km…)
 │   ├── scripts/       Comandos de línea (crear_admin)
 │   └── models/        Modelos (tablas): empresa, centro, usuario, tipo_vehiculo, vehiculo
@@ -132,6 +132,12 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | GET | `/vehiculos/{id}/km` | todos | Historial de lecturas de km (de la más reciente a la más antigua) |
 | POST | `/vehiculos/{id}/km` | todos | Registrar una lectura `{"km": …, "fecha": opcional}` |
 | DELETE | `/vehiculos/{id}/km/{lectura_id}` | admin, tráfico | Borrar una lectura errónea (no la única) |
+| GET | `/tipos-vencimiento` | todos | Tipos de vencimiento (filtro `aplica_a=vehiculo` o `persona`) |
+| POST | `/tipos-vencimiento` | admin | Crear un tipo con sus días de aviso y si bloquea la salida |
+| GET | `/vehiculos/{id}/vencimientos` | todos | Documentos con semáforo, días restantes y si son el vigente |
+| POST | `/vehiculos/{id}/vencimientos` | admin, tráfico | Registrar un documento o su renovación |
+| DELETE | `/vehiculos/{id}/vencimientos/{venc_id}` | admin, tráfico | Borrar un vencimiento registrado por error |
+| GET | `/vehiculos/{id}/aptitud` | todos | ¿Apto para salir? Con motivos y el peor semáforo |
 
 La matrícula se normaliza al guardar (`"1234 abc"`, `"1234-ABC"` → `"1234ABC"`), así que la regla
 de unicidad no se puede saltar escribiéndola de otra forma. Una matrícula dada de baja sigue ocupada.
@@ -140,3 +146,9 @@ de unicidad no se puede saltar escribiéndola de otra forma. Una matrícula dada
 (≥ la anterior y ≤ la posterior, si es de una fecha pasada) y no puede ser de una fecha futura.
 `km_actuales` es siempre el de la última lectura; el alta del vehículo crea la lectura inicial.
 La regla vive en `app/reglas/km.py` y se prueba sin base de datos (`tests/test_reglas_km.py`).
+
+**Vencimientos (FLO-06, FLO-07):** semáforo rojo si ya caducó, ámbar si quedan ≤ `dias_aviso`
+del tipo (un documento que caduca hoy es ámbar) y verde en otro caso. Al renovar se registra un
+vencimiento nuevo: de cada tipo solo cuenta el que caduca más tarde (el vigente). Un vehículo
+es apto para salir si está activo, operativo y sin documentos vigentes caducados de tipos que
+bloquean la salida. Reglas en `app/reglas/vencimientos.py`.

@@ -8,11 +8,13 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AplicaA,
     Centro,
     Combustible,
     Empresa,
     RolUsuario,
     TipoVehiculo,
+    TipoVencimiento,
     UnidadCapacidad,
     Usuario,
     Vehiculo,
@@ -61,6 +63,26 @@ def crear_usuario(
     db.add(usuario)
     db.flush()
     return usuario
+
+
+def crear_tipo_vencimiento(
+    db: Session,
+    empresa: Empresa,
+    nombre: str = "ITV",
+    dias_aviso: int = 30,
+    aplica_a: AplicaA = AplicaA.VEHICULO,
+    bloquea_salida: bool = True,
+) -> TipoVencimiento:
+    tipo = TipoVencimiento(
+        empresa_id=empresa.id,
+        nombre=nombre,
+        dias_aviso=dias_aviso,
+        aplica_a=aplica_a,
+        bloquea_salida=bloquea_salida,
+    )
+    db.add(tipo)
+    db.flush()
+    return tipo
 
 
 def cabeceras(usuario: Usuario) -> dict[str, str]:
