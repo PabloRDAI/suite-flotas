@@ -1,0 +1,87 @@
+# Integración continua: en cada push a main y en cada pull request, GitHub
+# ejecuta en sus servidores los tests del backend y comprueba el frontend.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Mínimos permisos necesarios: solo leer el código.
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    # Contenedor de PostgreSQL solo para esta ejecución (igual que docker-compose.yml).
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: suite
+          POSTGRES_PASSWORD: suite_ci
+          POSTGRES_DB: suite_flotas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U suite -d suite_flotas"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # En CI no hay archivo .env: la configuración va como variable de entorno.
+    env:
+      DATABASE_URL: postgresql+psycopg://suite:suite_ci@127.0.0.1:5432/suite_flotas
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v5
+
+      - name: Instalar Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Instalar dependencias
+        run: pip install -e ".[dev]"
+
+      - name: Aplicar migraciones
+        run: alembic upgrade head
+
+      - name: Ejecutar tests
+        run: pytest
+
+  frontend:
+    name: Frontend (lint y build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v5
+
+      - name: Instalar Node.js 26
+        uses: actions/setup-node@v5
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependencias (exactas, según package-lock.json)
+        run: npm ci
+
+      - name: Linter
+        run: npm run lint
+
+      - name: Compilar (incluye la comprobación de tipos de TypeScript)
+        run: npm run build

@@ -1,5 +1,7 @@
 # Suite Flotas
 
+[![CI](https://github.com/PabloRDAI/suite-flotas/actions/workflows/ci.yml/badge.svg)](https://github.com/PabloRDAI/suite-flotas/actions/workflows/ci.yml)
+
 Suite de gestión para operadores de transporte (viajeros y mercancías) con flotas pequeñas
 (5-150 vehículos): **flota, personal y mantenimiento (GMAO básico)**.
 
@@ -29,6 +31,7 @@ suite-flotas/
 ├── backend/            API REST y motor de reglas (FastAPI)
 ├── frontend/           Aplicación web (React + TypeScript)
 ├── docs/               Especificación, decisiones (ADR) y capturas
+├── .github/workflows/  Integración continua (GitHub Actions)
 ├── docker-compose.yml  PostgreSQL para desarrollo
 ├── .env.example        Variables de entorno de ejemplo
 └── LICENSE             Licencia MIT
@@ -48,14 +51,21 @@ docker compose up -d
 docker compose ps        # el servicio "db" debe aparecer como "healthy"
 ```
 
-Después, sigue las instrucciones de [`backend/README.md`](backend/README.md) para arrancar la API
-(http://127.0.0.1:8000/salud). Las del frontend se añadirán más adelante.
+Después, en dos terminales:
+
+1. **API:** sigue [`backend/README.md`](backend/README.md) → http://127.0.0.1:8000/salud
+2. **Web:** sigue [`frontend/README.md`](frontend/README.md) → http://localhost:5173
+
+## Integración continua
+
+En cada `push` a `main`, GitHub Actions ([`ci.yml`](.github/workflows/ci.yml)) ejecuta los tests del
+backend contra un PostgreSQL temporal, y el linter y la compilación del frontend.
 
 ## Plan de entrega
 
 | Fase | Contenido | Estado |
 |---|---|---|
-| F0 Andamiaje | Repositorio, Docker con PostgreSQL, FastAPI, React e integración continua | 🚧 En curso |
+| F0 Andamiaje | Repositorio, Docker con PostgreSQL, FastAPI, React e integración continua | ✅ Hecha |
 | F1 Flota | Multiempresa, roles, vehículos, km, vencimientos, panel de flota | ⏳ |
 | F2 Personal | Personas, vencimientos personales, asignaciones | ⏳ |
 | F3 GMAO | Planes preventivos, averías, órdenes de trabajo, costes | ⏳ |
