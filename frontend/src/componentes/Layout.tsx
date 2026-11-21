@@ -3,12 +3,13 @@
 
 import { AppShell, Burger, Button, Group, NavLink, Text, Title } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { IconHeartbeat, IconLogout, IconTruck } from '@tabler/icons-react'
+import { IconHeartbeat, IconLayoutDashboard, IconLogout, IconTruck } from '@tabler/icons-react'
 import { NavLink as EnlaceRouter, Outlet } from 'react-router'
 import { useSesion } from '../auth/contexto.ts'
 import { nombresRol } from '../util/formato.ts'
 
 const MENU = [
+  { a: '/panel', texto: 'Panel de flota', Icono: IconLayoutDashboard },
   { a: '/vehiculos', texto: 'Vehículos', Icono: IconTruck },
   { a: '/sistema', texto: 'Estado del sistema', Icono: IconHeartbeat },
 ]

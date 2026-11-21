@@ -94,7 +94,7 @@ def test_con_la_itv_vencida_no_es_apto_aunque_este_operativo() -> None:
     resultado = aptitud_para_salir(True, "operativo", [doc(ITV, "ITV", en(-1))], HOY)
 
     assert resultado.apto is False
-    assert resultado.motivos == ["ITV caducada el 20/11/2026"]
+    assert resultado.motivos == ["ITV: caducó el 20/11/2026"]
     assert resultado.semaforo == Semaforo.ROJO
 
 

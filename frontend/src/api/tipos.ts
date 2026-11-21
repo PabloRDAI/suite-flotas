@@ -62,6 +62,44 @@ export type Vencimiento = {
   vigente: boolean
 }
 
+export type VehiculoPanel = {
+  id: number
+  matricula: string
+  marca: string
+  modelo: string
+  tipo_id: number
+  centro_id: number
+  km_actuales: number
+  estado: EstadoVehiculo
+  apto: boolean
+  motivos: string[]
+  semaforo: Semaforo
+}
+
+export type AlertaPanel = {
+  tipo: 'vencimiento'
+  semaforo: Semaforo
+  vehiculo_id: number
+  matricula: string
+  mensaje: string
+  fecha: string
+  dias_restantes: number
+}
+
+export type Panel = {
+  fecha: string
+  contadores: {
+    total: number
+    operativo: number
+    en_taller: number
+    inmovilizado: number
+    aptos: number
+    no_aptos: number
+  }
+  vehiculos: VehiculoPanel[]
+  alertas: AlertaPanel[]
+}
+
 export type Aptitud = {
   apto: boolean
   motivos: string[]

@@ -94,7 +94,7 @@ def test_con_la_itv_vencida_no_es_apto_aunque_este_operativo(api: TestClient, fl
     assert resultado["apto"] is False
     assert resultado["semaforo"] == "rojo"
     assert len(resultado["motivos"]) == 1
-    assert resultado["motivos"][0].startswith("ITV caducada el")
+    assert resultado["motivos"][0].startswith("ITV: caducó el")
 
 
 def test_tras_renovar_la_itv_vuelve_a_ser_apto(api: TestClient, flota: dict) -> None:

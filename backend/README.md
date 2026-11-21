@@ -136,6 +136,7 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | Método | Ruta | Roles | Descripción |
 |---|---|---|---|
 | GET | `/salud` | público | 200 si la API y la BD funcionan; 503 si la BD no responde |
+| GET | `/panel` | todos | Panel de flota: contadores, vehículos con aptitud y alertas (filtros `centro_id`, `tipo_id`) |
 | POST | `/auth/login` | público | Email + contraseña → token de sesión |
 | GET | `/auth/yo` | todos | Datos del usuario conectado |
 | GET | `/centros` | todos | Centros activos de la empresa |
@@ -170,6 +171,10 @@ del tipo (un documento que caduca hoy es ámbar) y verde en otro caso. Al renova
 vencimiento nuevo: de cada tipo solo cuenta el que caduca más tarde (el vigente). Un vehículo
 es apto para salir si está activo, operativo y sin documentos vigentes caducados de tipos que
 bloquean la salida. Reglas en `app/reglas/vencimientos.py`.
+
+**Panel de flota (FLO-04):** `GET /panel` calcula contadores, tabla y alertas sobre la misma lista de
+vehículos activos (los totales coinciden con el listado filtrado) con solo dos consultas a la BD;
+un test comprueba que responde en menos de 1 s con 150 vehículos.
 
 **Estado del vehículo (FLO-03, regla 1):** de baja si está inactivo; en taller si tiene una OT
 abierta que inmoviliza; inmovilizado si tiene una avería "inmoviliza" sin OT abierta; si no,

@@ -13,6 +13,7 @@ from app.routers import (
     auth,
     centros,
     lecturas_km,
+    panel,
     tipos_vehiculo,
     tipos_vencimiento,
     vehiculos,
@@ -22,6 +23,7 @@ from app.routers import (
 app = FastAPI(title=get_settings().nombre_app, version="0.1.0")
 
 app.include_router(auth.router)
+app.include_router(panel.router)
 app.include_router(centros.router)
 app.include_router(tipos_vehiculo.router)
 app.include_router(tipos_vencimiento.router)

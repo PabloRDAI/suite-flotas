@@ -7,7 +7,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './cliente.ts'
-import type { Aptitud, Centro, LecturaKm, TipoVehiculo, Usuario, Vehiculo, Vencimiento } from './tipos.ts'
+import type { Aptitud, Centro, LecturaKm, Panel, TipoVehiculo, Usuario, Vehiculo, Vencimiento } from './tipos.ts'
 
 // Claves de caché en un solo sitio, para no equivocarse al invalidarlas.
 export const claves = {
@@ -19,7 +19,21 @@ export const claves = {
   km: (id: number) => ['vehiculo', id, 'km'] as const,
   vencimientos: (id: number) => ['vehiculo', id, 'vencimientos'] as const,
   aptitud: (id: number) => ['vehiculo', id, 'aptitud'] as const,
+  panel: (centroId: string | null, tipoId: string | null) => ['panel', { centroId, tipoId }] as const,
 }
+
+/** Panel de flota (FLO-04): todo calculado en el servidor en una sola petición. */
+export const usePanel = (centroId: string | null, tipoId: string | null) =>
+  useQuery({
+    queryKey: claves.panel(centroId, tipoId),
+    queryFn: () => {
+      const filtros = new URLSearchParams()
+      if (centroId) filtros.set('centro_id', centroId)
+      if (tipoId) filtros.set('tipo_id', tipoId)
+      return api<Panel>(`/panel${filtros.size ? `?${filtros}` : ''}`)
+    },
+    placeholderData: (anterior) => anterior, // al cambiar de filtro, mantiene los datos previos mientras carga
+  })
 
 export const useYo = (activa: boolean) =>
   useQuery({ queryKey: claves.yo, queryFn: () => api<Usuario>('/auth/yo'), enabled: activa })
@@ -62,6 +76,7 @@ export function useRegistrarLectura(vehiculoId: number) {
     onSuccess: () => {
       void cliente.invalidateQueries({ queryKey: ['vehiculo', vehiculoId] }) // ficha, km, aptitud…
       void cliente.invalidateQueries({ queryKey: ['vehiculos'] }) // los km del listado
+      void cliente.invalidateQueries({ queryKey: ['panel'] }) // y los del panel
     },
   })
 }

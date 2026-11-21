@@ -8,7 +8,7 @@
 
 import re
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, StringConstraints, model_validator
 
@@ -200,6 +200,52 @@ class AptitudSalida(BaseModel):
     apto: bool
     motivos: list[str]
     semaforo: Semaforo  # el peor de su documentación vigente
+
+
+class VehiculoPanel(BaseModel):
+    """Un vehículo en el panel, con su aptitud ya calculada."""
+
+    id: int
+    matricula: str
+    marca: str
+    modelo: str
+    tipo_id: int
+    centro_id: int
+    km_actuales: int
+    estado: EstadoVehiculo
+    apto: bool
+    motivos: list[str]
+    semaforo: Semaforo  # peor semáforo de su documentación vigente
+
+
+class AlertaPanel(BaseModel):
+    """Algo que requiere atención. Hoy: vencimientos; más adelante, preventivos y averías."""
+
+    tipo: Literal["vencimiento"]
+    semaforo: Semaforo
+    vehiculo_id: int
+    matricula: str
+    mensaje: str
+    fecha: date
+    dias_restantes: int
+
+
+class ContadoresPanel(BaseModel):
+    total: int
+    operativo: int
+    en_taller: int
+    inmovilizado: int
+    aptos: int
+    no_aptos: int
+
+
+class PanelSalida(BaseModel):
+    """FLO-04: contadores, tabla y alertas, calculados sobre la MISMA lista de vehículos."""
+
+    fecha: date
+    contadores: ContadoresPanel
+    vehiculos: list[VehiculoPanel]
+    alertas: list[AlertaPanel]
 
 
 class LecturaKmCrear(EntradaEstricta):

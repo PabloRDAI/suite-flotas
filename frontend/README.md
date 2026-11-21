@@ -19,7 +19,7 @@ frontend/src/
 │   ├── contexto.ts     Contexto de sesión y hook useSesion()
 │   └── sesion.tsx      ProveedorSesion (login/logout) y RequiereSesion (rutas protegidas)
 ├── componentes/        Layout (cabecera + menú), indicadores (semáforo, estado), carga/error
-├── pantallas/          Login, Vehiculos (listado), FichaVehiculo, EstadoSistema
+├── pantallas/          Login, Panel, Vehiculos (listado), FichaVehiculo, EstadoSistema
 └── util/formato.ts     Fechas, km y números en español
 ```
 
@@ -28,6 +28,7 @@ frontend/src/
 | URL | Pantalla |
 |---|---|
 | `/login` | Inicio de sesión |
+| `/panel` | Panel de flota (inicio): contadores por estado que filtran la tabla, alertas y aptitud de cada vehículo |
 | `/vehiculos` | Listado con búsqueda y filtros por centro, tipo, estado e incluir bajas |
 | `/vehiculos/:id` | Ficha: aptitud para salir, pestañas de datos, documentación (semáforo) y km (con formulario de lectura) |
 | `/sistema` | Estado de la API y la base de datos |

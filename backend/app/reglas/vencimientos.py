@@ -87,7 +87,8 @@ def aptitud_para_salir(activo: bool, estado: str, documentos: Iterable[Documento
         motivos.append(f"Estado: {estado.replace('_', ' ')}")
     for doc in docs:
         if doc.bloquea_salida and semaforo(doc.fecha_caducidad, doc.dias_aviso, hoy) == Semaforo.ROJO:
-            motivos.append(f"{doc.tipo_nombre} caducada el {doc.fecha_caducidad.strftime('%d/%m/%Y')}")
+            # Redacción neutra ("Seguro: caducó…", "ITV: caducó…"): vale para cualquier nombre de tipo.
+            motivos.append(f"{doc.tipo_nombre}: caducó el {doc.fecha_caducidad.strftime('%d/%m/%Y')}")
 
     return Aptitud(
         apto=not motivos,
