@@ -355,6 +355,26 @@ class PreventivoSalida(BaseModel):
     vencido_por_km: bool
 
 
+class PrevisionItem(BaseModel):
+    """Un preventivo vencido o próximo (MAN-02), ya evaluado por el motor."""
+
+    vehiculo_id: int
+    matricula: str
+    tipo_id: int
+    centro_id: int
+    km_actuales: int
+    plan_id: int
+    plan_nombre: str
+    tareas: list[str]
+    situacion: Situacion  # solo "vencido" o "proximo"
+    motivo: str
+    proxima_fecha: date | None
+    proximos_km: int | None
+    dias_restantes: int | None
+    km_restantes: int | None
+    urgencia: float  # cuanto menor, más urgente (negativo: vencido)
+
+
 class RealizacionCrear(EntradaEstricta):
     """Registrar que se hizo un preventivo. Sin datos: hoy y con los km actuales del vehículo."""
 
@@ -379,15 +399,16 @@ class VehiculoPanel(BaseModel):
 
 
 class AlertaPanel(BaseModel):
-    """Algo que requiere atención. Hoy: vencimientos; más adelante, preventivos y averías."""
+    """Algo que requiere atención: documentación (FLO-06) y preventivos (MAN-02).
+    Más adelante, averías abiertas."""
 
-    tipo: Literal["vencimiento"]
-    semaforo: Semaforo
+    tipo: Literal["vencimiento", "preventivo"]
+    semaforo: Semaforo  # rojo: caducado / vencido · ámbar: caduca pronto / próximo
     vehiculo_id: int
     matricula: str
     mensaje: str
-    fecha: date
-    dias_restantes: int
+    fecha: date | None  # un preventivo solo por km no tiene fecha
+    dias_restantes: int | None
 
 
 class ContadoresPanel(BaseModel):

@@ -105,13 +105,51 @@ export type VehiculoPanel = {
 }
 
 export type AlertaPanel = {
-  tipo: 'vencimiento'
+  tipo: 'vencimiento' | 'preventivo' // documentación (FLO-06) o mantenimiento (MAN-02)
   semaforo: Semaforo
   vehiculo_id: number
   matricula: string
   mensaje: string
-  fecha: string
-  dias_restantes: number
+  fecha: string | null // un preventivo solo por km no tiene fecha
+  dias_restantes: number | null
+}
+
+// --- Mantenimiento preventivo (MAN-01, MAN-02) ---
+
+export type SituacionPreventivo = 'al_dia' | 'proximo' | 'vencido'
+
+export type Preventivo = {
+  plan_id: number
+  plan_nombre: string
+  intervalo_km: number | null
+  intervalo_dias: number | null
+  tareas: string[]
+  ultima_fecha: string
+  ultimos_km: number
+  proxima_fecha: string | null
+  proximos_km: number | null
+  situacion: SituacionPreventivo
+  motivo: string
+  dias_restantes: number | null
+  km_restantes: number | null
+}
+
+export type PrevisionItem = {
+  vehiculo_id: number
+  matricula: string
+  tipo_id: number
+  centro_id: number
+  km_actuales: number
+  plan_id: number
+  plan_nombre: string
+  tareas: string[]
+  situacion: SituacionPreventivo
+  motivo: string
+  proxima_fecha: string | null
+  proximos_km: number | null
+  dias_restantes: number | null
+  km_restantes: number | null
+  urgencia: number
 }
 
 export type Panel = {

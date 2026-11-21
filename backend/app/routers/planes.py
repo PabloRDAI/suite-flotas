@@ -12,7 +12,7 @@ from sqlalchemy import delete, select
 from app.deps import Db, GestionTaller, UsuarioActual
 from app.models import EstadoPlan, PlanMantenimiento, TareaPlan, TipoVehiculo, Usuario
 from app.routers.vehiculos import vehiculo_de_mi_empresa
-from app.schemas import PlanCrear, PlanEditar, PlanSalida, PreventivoSalida, RealizacionCrear
+from app.schemas import PlanCrear, PlanEditar, PlanSalida, PrevisionItem, PreventivoSalida, RealizacionCrear
 from app.servicios import preventivos as servicio
 
 router = APIRouter(tags=["mantenimiento"])
@@ -125,6 +125,17 @@ def dar_de_baja_plan(plan_id: int, usuario: GestionTaller, db: Db) -> Response:
     plan.activo = False
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- Previsión de preventivos (MAN-02) ---------------------------------------
+
+
+@router.get("/preventivos/prevision")
+def prevision_de_preventivos(
+    usuario: UsuarioActual, db: Db, centro_id: int | None = None, tipo_id: int | None = None
+) -> list[PrevisionItem]:
+    """Lo que toca en los próximos 30 días o 2.000 km (y lo ya vencido), por urgencia."""
+    return servicio.prevision(db, usuario.empresa_id, date.today(), centro_id=centro_id, tipo_id=tipo_id)
 
 
 # --- Preventivos de un vehículo ----------------------------------------------

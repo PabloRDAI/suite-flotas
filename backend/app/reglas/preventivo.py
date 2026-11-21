@@ -97,3 +97,22 @@ def evaluar(
         situacion = Situacion.AL_DIA
 
     return EstadoPreventivo(situacion, por_fecha, por_km, dias, km, motivo)
+
+
+def urgencia(estado: EstadoPreventivo, margen_dias: int = MARGEN_DIAS, margen_km: int = MARGEN_KM) -> float:
+    """Índice de urgencia para ordenar la previsión (MAN-02). Cuanto MENOR, más urgente.
+
+    Días y km no se pueden comparar directamente, así que cada uno se mide como
+    la fracción del margen de previsión que queda (30 días, 2.000 km) y se toma
+    la condición que llegue antes:
+        1     -> justo en el borde de la previsión
+        0     -> toca hoy / ahora
+        < 0   -> vencido (cuanto más negativo, más atrasado)
+    Ejemplo: "se pasó en 1.500 km" = -0,75 va antes que "vencido hace 15 días" = -0,5.
+    """
+    fracciones = []
+    if estado.dias_restantes is not None:
+        fracciones.append(estado.dias_restantes / margen_dias)
+    if estado.km_restantes is not None:
+        fracciones.append(estado.km_restantes / margen_km)
+    return min(fracciones)

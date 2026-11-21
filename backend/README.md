@@ -141,7 +141,7 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | Método | Ruta | Roles | Descripción |
 |---|---|---|---|
 | GET | `/salud` | público | 200 si la API y la BD funcionan; 503 si la BD no responde |
-| GET | `/panel` | todos | Panel de flota: contadores, vehículos con aptitud y alertas (filtros `centro_id`, `tipo_id`) |
+| GET | `/panel` | todos | Panel de flota: contadores, vehículos con aptitud y alertas de documentación y preventivos (filtros `centro_id`, `tipo_id`) |
 | POST | `/auth/login` | público | Email + contraseña → token de sesión |
 | GET | `/auth/yo` | todos | Datos del usuario conectado |
 | GET | `/centros` | todos | Centros activos de la empresa |
@@ -178,6 +178,7 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | POST | `/planes` | admin, taller | Crear un plan (km, días o ambos); los vehículos de ese tipo empiezan a contar desde hoy |
 | GET/PATCH/DELETE | `/planes/{id}` | todos / admin, taller | Ver, editar (recalcula los próximos) o dar de baja |
 | GET | `/vehiculos/{id}/preventivos` | todos | Situación de cada plan en el vehículo (vencidos primero) |
+| GET | `/preventivos/prevision` | todos | Previsión (MAN-02): vencidos y lo que toca en 30 días o 2.000 km, por urgencia (filtros `centro_id`, `tipo_id`) |
 | POST | `/vehiculos/{id}/preventivos/{plan_id}/realizado` | admin, taller | Registrar que se hizo (fecha y km) y recalcular |
 
 La matrícula se normaliza al guardar (`"1234 abc"`, `"1234-ABC"` → `"1234ABC"`), así que la regla
@@ -213,6 +214,13 @@ próximo (`proxima_fecha = ultima_fecha + intervalo_dias`, `proximos_km = ultimo
 Vence cuando se alcanza la primera de las dos; está "próximo" si faltan ≤ 30 días o ≤ 2.000 km
 (margen de MAN-02). Regla en `app/reglas/preventivo.py`; al crear un plan o un vehículo, se empieza
 a contar desde hoy y sus km actuales, hasta que el taller registre la realización real.
+
+**Previsión de preventivos (MAN-02):** `GET /preventivos/prevision` reúne los vencidos y los
+próximos de toda la flota y los ordena por un índice de urgencia (`urgencia()` en el motor): la
+fracción del margen que queda (días / 30 o km / 2.000, lo que llegue antes). Negativo = vencido,
+cuanto más negativo más atrasado. Un test comprueba que la lista coincide con el cálculo directo
+del motor. Los mismos preventivos aparecen como alertas del panel (rojo vencido, ámbar próximo);
+un preventivo vencido avisa, pero no impide salir.
 
 **Estado del vehículo (FLO-03, regla 1):** de baja si está inactivo; en taller si tiene una OT
 abierta que inmoviliza; inmovilizado si tiene una avería "inmoviliza" sin OT abierta; si no,

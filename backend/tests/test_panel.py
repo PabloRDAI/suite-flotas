@@ -174,14 +174,18 @@ def test_panel_de_una_empresa_sin_vehiculos(api: TestClient, db: Session) -> Non
 
 
 def test_panel_de_la_empresa_demo(api: TestClient, db: Session) -> None:
-    """Con los datos demo: 25 vehículos, 2 no aptos, 3 alertas rojas y 3 ámbar."""
+    """Con los datos demo: 25 vehículos, 2 no aptos y alertas de documentación y de preventivos."""
     crear_empresa_demo(db, hoy=HOY)
     token = api.post("/auth/login", json={"email": email_demo("trafico"), "password": PASSWORD_DEMO}).json()
     datos = panel(api, {"Authorization": f"Bearer {token['access_token']}"})
 
     assert datos["contadores"]["total"] == 25
     assert datos["contadores"]["no_aptos"] == 2
-    assert Counter(a["semaforo"] for a in datos["alertas"]) == {"rojo": 3, "ambar": 3}
+    por_tipo = Counter((a["tipo"], a["semaforo"]) for a in datos["alertas"])
+    assert por_tipo == {
+        ("vencimiento", "rojo"): 3, ("vencimiento", "ambar"): 3,  # documentación (FLO-06)
+        ("preventivo", "rojo"): 2, ("preventivo", "ambar"): 2,  # mantenimiento (MAN-02)
+    }
 
 
 @pytest.mark.parametrize(

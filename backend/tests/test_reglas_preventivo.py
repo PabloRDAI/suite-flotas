@@ -9,11 +9,13 @@ from datetime import date
 import pytest
 
 from app.reglas.preventivo import (
+    EstadoPreventivo,
     PlanSinIntervalo,
     Proximo,
     Situacion,
     calcular_proximo,
     evaluar,
+    urgencia,
 )
 
 ULTIMA = date(2026, 1, 15)
@@ -120,6 +122,46 @@ def test_un_plan_solo_por_km_ignora_la_fecha() -> None:
     assert estado.situacion == Situacion.AL_DIA
     assert estado.dias_restantes is None
     assert estado.motivo == "Faltan 10.000 km"
+
+
+# --- MAN-02: índice de urgencia ----------------------------------------------
+
+
+def estado_con(dias: int | None = None, km: int | None = None) -> EstadoPreventivo:
+    """Estado con los restantes indicados (el resto de campos no influye en la urgencia)."""
+    return EstadoPreventivo(Situacion.PROXIMO, False, False, dias, km, "")
+
+
+@pytest.mark.parametrize(
+    ("dias", "km", "esperado"),
+    [
+        (30, None, 1.0),  # en el borde de la previsión por fecha
+        (None, 2_000, 1.0),  # en el borde por km
+        (0, None, 0.0),  # toca hoy
+        (12, None, 0.4),
+        (None, 1_200, 0.6),
+        (-15, None, -0.5),  # vencido hace 15 días
+        (None, -1_500, -0.75),  # se pasó en 1.500 km
+        (12, 20_000, 0.4),  # con las dos, manda la que llega antes (la fecha)
+        (300, 1_200, 0.6),  # …o los km
+    ],
+)
+def test_indice_de_urgencia(dias: int | None, km: int | None, esperado: float) -> None:
+    assert urgencia(estado_con(dias, km)) == pytest.approx(esperado)
+
+
+def test_ordenar_por_urgencia_mezcla_km_y_dias_con_sentido() -> None:
+    """Los cuatro casos de la demo, en el orden que debe salir la previsión."""
+    casos = {
+        "faltan 1.200 km": estado_con(km=1_200),
+        "vencido hace 15 días": estado_con(dias=-15),
+        "faltan 12 días": estado_con(dias=12),
+        "se pasó en 1.500 km": estado_con(km=-1_500),
+    }
+
+    orden = sorted(casos, key=lambda nombre: urgencia(casos[nombre]))
+
+    assert orden == ["se pasó en 1.500 km", "vencido hace 15 días", "faltan 12 días", "faltan 1.200 km"]
 
 
 def test_un_plan_solo_por_tiempo_ignora_los_km() -> None:

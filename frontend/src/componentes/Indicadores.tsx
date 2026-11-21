@@ -9,8 +9,9 @@ import {
   IconHandStop,
   IconTool,
   IconArchive,
+  IconClockHour4,
 } from '@tabler/icons-react'
-import type { EstadoVehiculo as Estado, Semaforo } from '../api/tipos.ts'
+import type { EstadoVehiculo as Estado, Semaforo, SituacionPreventivo } from '../api/tipos.ts'
 
 const SEMAFORO = {
   verde: { color: 'green', texto: 'En regla', Icono: IconCircleCheck },
@@ -38,6 +39,22 @@ const ESTADO = {
 /** Estado del vehículo (FLO-03), con icono y texto. */
 export function EstadoVehiculo({ valor }: { valor: Estado }) {
   const { color, texto, Icono } = ESTADO[valor]
+  return (
+    <Badge color={color} variant="light" leftSection={<Icono size={14} aria-hidden />}>
+      {texto}
+    </Badge>
+  )
+}
+
+const PREVENTIVO = {
+  al_dia: { color: 'green', texto: 'Al día', Icono: IconCircleCheck },
+  proximo: { color: 'yellow', texto: 'Próximo', Icono: IconClockHour4 },
+  vencido: { color: 'red', texto: 'Vencido', Icono: IconCircleX },
+} as const
+
+/** Situación de un preventivo (MAN-01, MAN-02), con icono y texto. */
+export function IndicadorPreventivo({ valor }: { valor: SituacionPreventivo }) {
+  const { color, texto, Icono } = PREVENTIVO[valor]
   return (
     <Badge color={color} variant="light" leftSection={<Icono size={14} aria-hidden />}>
       {texto}

@@ -14,6 +14,8 @@ import type {
   LecturaKm,
   Panel,
   Persona,
+  PrevisionItem,
+  Preventivo,
   TipoVehiculo,
   Usuario,
   Vehiculo,
@@ -36,6 +38,8 @@ export const claves = {
   persona: (id: number) => ['persona', id] as const,
   vencimientosPersona: (id: number) => ['persona', id, 'vencimientos'] as const,
   asignacionesPersona: (id: number) => ['persona', id, 'asignaciones'] as const,
+  preventivos: (id: number) => ['vehiculo', id, 'preventivos'] as const,
+  prevision: (centroId: string | null, tipoId: string | null) => ['prevision', { centroId, tipoId }] as const,
 }
 
 // --- Personal (PER-01, PER-02) -----------------------------------------------
@@ -164,6 +168,41 @@ export function useRegistrarLectura(vehiculoId: number) {
       void cliente.invalidateQueries({ queryKey: ['vehiculo', vehiculoId] }) // ficha, km, aptitud…
       void cliente.invalidateQueries({ queryKey: ['vehiculos'] }) // los km del listado
       void cliente.invalidateQueries({ queryKey: ['panel'] }) // y los del panel
+    },
+  })
+}
+
+// --- Mantenimiento preventivo (MAN-01, MAN-02) -------------------------------
+
+export const usePreventivos = (vehiculoId: number) =>
+  useQuery({
+    queryKey: claves.preventivos(vehiculoId),
+    queryFn: () => api<Preventivo[]>(`/vehiculos/${vehiculoId}/preventivos`),
+  })
+
+/** Previsión (MAN-02): vencidos y lo que toca en 30 días o 2.000 km, ya ordenado por urgencia. */
+export const usePrevision = (centroId: string | null, tipoId: string | null) =>
+  useQuery({
+    queryKey: claves.prevision(centroId, tipoId),
+    queryFn: () => {
+      const filtros = new URLSearchParams()
+      if (centroId) filtros.set('centro_id', centroId)
+      if (tipoId) filtros.set('tipo_id', tipoId)
+      return api<PrevisionItem[]>(`/preventivos/prevision${filtros.size ? `?${filtros}` : ''}`)
+    },
+    placeholderData: (anterior) => anterior,
+  })
+
+/** Registrar que se hizo un preventivo (sin datos: hoy y con los km actuales). */
+export function useRegistrarRealizacion() {
+  const cliente = useQueryClient()
+  return useMutation({
+    mutationFn: ({ vehiculoId, planId }: { vehiculoId: number; planId: number }) =>
+      api<Preventivo[]>(`/vehiculos/${vehiculoId}/preventivos/${planId}/realizado`, { metodo: 'POST', cuerpo: {} }),
+    onSuccess: (_datos, { vehiculoId }) => {
+      void cliente.invalidateQueries({ queryKey: claves.preventivos(vehiculoId) })
+      void cliente.invalidateQueries({ queryKey: ['prevision'] })
+      void cliente.invalidateQueries({ queryKey: ['panel'] })
     },
   })
 }

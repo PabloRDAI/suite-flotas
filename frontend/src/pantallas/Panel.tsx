@@ -18,7 +18,7 @@ import {
   Tooltip,
   UnstyledButton,
 } from '@mantine/core'
-import { IconAlertTriangle, IconCircleCheck, IconCircleX } from '@tabler/icons-react'
+import { IconAlertTriangle, IconCircleCheck, IconCircleX, IconTool } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useCentros, usePanel, useTiposVehiculo } from '../api/consultas.ts'
@@ -147,22 +147,31 @@ function Alertas({ alertas }: { alertas: AlertaPanel[] }) {
       {alertas.length === 0 ? (
         <Group gap="xs" c="green">
           <IconCircleCheck size={18} aria-hidden />
-          <Text>Nada pendiente: toda la documentación está en regla.</Text>
+          <Text>Nada pendiente: documentación en regla y mantenimiento al día.</Text>
         </Group>
       ) : (
         <Stack gap={6}>
           {alertas.map((a) => (
             <Group key={`${a.vehiculo_id}-${a.mensaje}`} gap="sm" wrap="nowrap">
+              {/* Documentación: ❌/⚠️ · Preventivo: 🔧. El color dice la gravedad; el texto, el qué. */}
               <ThemeIcon variant="light" color={a.semaforo === 'rojo' ? 'red' : 'yellow'} size="sm" aria-hidden>
-                {a.semaforo === 'rojo' ? <IconCircleX size={14} /> : <IconAlertTriangle size={14} />}
+                {a.tipo === 'preventivo' ? (
+                  <IconTool size={14} />
+                ) : a.semaforo === 'rojo' ? (
+                  <IconCircleX size={14} />
+                ) : (
+                  <IconAlertTriangle size={14} />
+                )}
               </ThemeIcon>
               <Anchor component={Link} to={`/vehiculos/${a.vehiculo_id}`} ff="monospace" fw={600}>
                 {a.matricula}
               </Anchor>
               <Text size="sm">{a.mensaje}</Text>
-              <Text size="xs" c="dimmed" visibleFrom="sm">
-                ({formatoFecha(a.fecha)})
-              </Text>
+              {a.fecha && (
+                <Text size="xs" c="dimmed" visibleFrom="sm">
+                  ({formatoFecha(a.fecha)})
+                </Text>
+              )}
             </Group>
           ))}
         </Stack>

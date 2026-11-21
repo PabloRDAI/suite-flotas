@@ -20,8 +20,8 @@ frontend/src/
 │   ├── permisos.ts     Qué botones ve cada rol (reflejo de los permisos de la API)
 │   └── sesion.tsx      ProveedorSesion (login/logout) y RequiereSesion (rutas protegidas)
 ├── componentes/        Layout, indicadores (semáforo, estado), carga/error, Documentacion,
-│                       HistorialAsignaciones y AsignarConductor
-├── pantallas/          Login, Panel, Vehiculos, FichaVehiculo, Personal, FichaPersona, EstadoSistema
+│                       HistorialAsignaciones, AsignarConductor y BotonRealizado
+├── pantallas/          Login, Panel, Vehiculos, FichaVehiculo, Personal, FichaPersona, Taller, EstadoSistema
 └── util/formato.ts     Fechas, km y números en español
 ```
 
@@ -30,11 +30,12 @@ frontend/src/
 | URL | Pantalla |
 |---|---|
 | `/login` | Inicio de sesión |
-| `/panel` | Panel de flota (inicio): contadores por estado que filtran la tabla, alertas y aptitud de cada vehículo |
+| `/panel` | Panel de flota (inicio): contadores por estado que filtran la tabla, alertas (documentación y preventivos) y aptitud de cada vehículo |
 | `/vehiculos` | Listado con búsqueda y filtros por centro, tipo, estado e incluir bajas |
-| `/vehiculos/:id` | Ficha: aptitud para salir, conductor/a habitual y pestañas de datos, documentación (semáforo), asignaciones (historial, asignar y finalizar) y km (con formulario de lectura) |
+| `/vehiculos/:id` | Ficha: aptitud para salir, conductor/a habitual y pestañas de datos, documentación (semáforo), asignaciones (historial, asignar y finalizar), mantenimiento (planes preventivos y su situación) y km (con formulario de lectura) |
 | `/personal` | Listado del personal con semáforo de documentación y filtros por puesto, centro y documentación |
 | `/personal/:id` | Ficha: aviso de documentación y pestañas de datos, documentación y vehículos asignados |
+| `/taller` | Previsión de preventivos por urgencia, con filtros y "Registrar realizado" (gerente y taller) |
 | `/sistema` | Estado de la API y la base de datos |
 
 ## Puesta en marcha

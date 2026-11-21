@@ -1,5 +1,6 @@
 // Ficha de un vehículo: aptitud para salir (FLO-07) y pestañas de datos,
-// documentación (FLO-06), asignaciones de conductor (PER-03, PER-04) y lecturas de km (FLO-05).
+// documentación (FLO-06), asignaciones de conductor (PER-03, PER-04), mantenimiento
+// preventivo (MAN-01) y lecturas de km (FLO-05).
 
 import {
   Alert,
@@ -26,6 +27,7 @@ import {
   IconGauge,
   IconInfoCircle,
   IconSteeringWheel,
+  IconTool,
 } from '@tabler/icons-react'
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
@@ -33,6 +35,7 @@ import { ErrorApi } from '../api/cliente.ts'
 import {
   useAptitud,
   useAsignacionesVehiculo,
+  usePreventivos,
   useCentros,
   useLecturasKm,
   useRegistrarLectura,
@@ -42,12 +45,13 @@ import {
 } from '../api/consultas.ts'
 import type { Aptitud, Vehiculo } from '../api/tipos.ts'
 import { useSesion } from '../auth/contexto.ts'
-import { puedeGestionarFlota } from '../auth/permisos.ts'
+import { puedeGestionarFlota, puedeGestionarTaller } from '../auth/permisos.ts'
 import { AsignarConductor } from '../componentes/AsignarConductor.tsx'
+import { BotonRealizado } from '../componentes/BotonRealizado.tsx'
 import { Cargando, ErrorCarga } from '../componentes/Carga.tsx'
 import { Documentacion } from '../componentes/Documentacion.tsx'
 import { HistorialAsignaciones } from '../componentes/HistorialAsignaciones.tsx'
-import { EstadoVehiculo } from '../componentes/Indicadores.tsx'
+import { EstadoVehiculo, IndicadorPreventivo } from '../componentes/Indicadores.tsx'
 import { etiqueta, formatoFecha, formatoKm, formatoNumero, hoyIso } from '../util/formato.ts'
 
 export default function FichaVehiculo() {
@@ -104,6 +108,9 @@ export default function FichaVehiculo() {
           <Tabs.Tab value="asignaciones" leftSection={<IconSteeringWheel size={16} />}>
             Asignaciones
           </Tabs.Tab>
+          <Tabs.Tab value="mantenimiento" leftSection={<IconTool size={16} />}>
+            Mantenimiento
+          </Tabs.Tab>
           <Tabs.Tab value="km" leftSection={<IconGauge size={16} />}>
             Km
           </Tabs.Tab>
@@ -116,6 +123,9 @@ export default function FichaVehiculo() {
         </Tabs.Panel>
         <Tabs.Panel value="asignaciones" pt="md">
           <PestanaAsignaciones vehiculo={v} />
+        </Tabs.Panel>
+        <Tabs.Panel value="mantenimiento" pt="md">
+          <PestanaMantenimiento vehiculo={v} />
         </Tabs.Panel>
         <Tabs.Panel value="km" pt="md">
           <PestanaKm vehiculo={v} />
@@ -209,6 +219,75 @@ function PestanaAsignaciones({ vehiculo }: { vehiculo: Vehiculo }) {
       {gestiona && <AsignarConductor vehiculoId={vehiculo.id} asignaciones={asignaciones.data} />}
       <HistorialAsignaciones asignaciones={asignaciones.data} mostrar="conductor" puedeFinalizar={gestiona} />
     </Stack>
+  )
+}
+
+/** MAN-01: los planes preventivos del vehículo, con su situación (vencidos primero). */
+function PestanaMantenimiento({ vehiculo }: { vehiculo: Vehiculo }) {
+  const { usuario } = useSesion()
+  const preventivos = usePreventivos(vehiculo.id)
+  const gestiona = puedeGestionarTaller(usuario) && vehiculo.activo
+
+  if (preventivos.isPending) return <Cargando />
+  if (preventivos.error) return <ErrorCarga error={preventivos.error} />
+  if (preventivos.data.length === 0) return <Text c="dimmed">No hay planes de mantenimiento para este tipo de vehículo.</Text>
+
+  const intervalo = (km: number | null, dias: number | null) =>
+    [km ? formatoKm(km) : null, dias ? `${dias} días` : null].filter(Boolean).join(' o ')
+
+  return (
+    <Table.ScrollContainer minWidth={820}>
+      <Table striped>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Plan</Table.Th>
+            <Table.Th>Situación</Table.Th>
+            <Table.Th>Último</Table.Th>
+            <Table.Th>Próximo</Table.Th>
+            <Table.Th>Motivo</Table.Th>
+            {gestiona && <Table.Th />}
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {preventivos.data.map((p) => (
+            <Table.Tr key={p.plan_id}>
+              <Table.Td>
+                <Text size="sm" fw={600}>
+                  {p.plan_nombre}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Cada {intervalo(p.intervalo_km, p.intervalo_dias)}
+                </Text>
+              </Table.Td>
+              <Table.Td>
+                <IndicadorPreventivo valor={p.situacion} />
+              </Table.Td>
+              <Table.Td>
+                {formatoFecha(p.ultima_fecha)} · {formatoKm(p.ultimos_km)}
+              </Table.Td>
+              <Table.Td>
+                {[p.proxima_fecha ? formatoFecha(p.proxima_fecha) : null, p.proximos_km !== null ? formatoKm(p.proximos_km) : null]
+                  .filter(Boolean)
+                  .join(' o ')}
+              </Table.Td>
+              <Table.Td>{p.motivo}</Table.Td>
+              {gestiona && (
+                <Table.Td>
+                  <BotonRealizado
+                    vehiculoId={vehiculo.id}
+                    matricula={vehiculo.matricula}
+                    planId={p.plan_id}
+                    planNombre={p.plan_nombre}
+                    kmActuales={vehiculo.km_actuales}
+                    tareas={p.tareas}
+                  />
+                </Table.Td>
+              )}
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
   )
 }
 

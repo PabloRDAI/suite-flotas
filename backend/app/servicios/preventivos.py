@@ -15,8 +15,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import EstadoPlan, PlanMantenimiento, TareaPlan, Vehiculo
-from app.reglas.preventivo import calcular_proximo, evaluar
-from app.schemas import PlanSalida, PreventivoSalida
+from app.reglas.preventivo import Situacion, calcular_proximo, evaluar, urgencia
+from app.schemas import PlanSalida, PrevisionItem, PreventivoSalida
 
 
 def recalcular(estado: EstadoPlan, plan: PlanMantenimiento) -> None:
@@ -124,3 +124,70 @@ def preventivos_de(db: Session, vehiculo: Vehiculo, hoy: date) -> list[Preventiv
     orden = {"vencido": 0, "proximo": 1, "al_dia": 2}
     resultado.sort(key=lambda p: (orden[p.situacion], p.plan_nombre))
     return resultado
+
+
+def prevision(
+    db: Session,
+    empresa_id: int,
+    hoy: date,
+    centro_id: int | None = None,
+    tipo_id: int | None = None,
+    vehiculo_ids: list[int] | None = None,
+) -> list[PrevisionItem]:
+    """MAN-02: preventivos vencidos o próximos (30 días o 2.000 km) de la empresa,
+    ordenados por urgencia (app/reglas/preventivo.py::urgencia).
+
+    Una consulta para todos los preventivos (más otra para las tareas).
+    """
+    consulta = (
+        select(EstadoPlan, PlanMantenimiento, Vehiculo)
+        .join(PlanMantenimiento, PlanMantenimiento.id == EstadoPlan.plan_id)
+        .join(Vehiculo, Vehiculo.id == EstadoPlan.vehiculo_id)
+        .where(
+            Vehiculo.empresa_id == empresa_id,
+            Vehiculo.activo,
+            PlanMantenimiento.activo,
+            PlanMantenimiento.tipo_vehiculo_id == Vehiculo.tipo_id,
+        )
+    )
+    if centro_id is not None:
+        consulta = consulta.where(Vehiculo.centro_id == centro_id)
+    if tipo_id is not None:
+        consulta = consulta.where(Vehiculo.tipo_id == tipo_id)
+    if vehiculo_ids is not None:
+        consulta = consulta.where(Vehiculo.id.in_(vehiculo_ids))
+
+    pendientes = []
+    for estado, plan, vehiculo in db.execute(consulta).tuples():
+        e = evaluar(
+            calcular_proximo(estado.ultima_fecha, estado.ultimos_km, plan.intervalo_dias, plan.intervalo_km),
+            hoy,
+            vehiculo.km_actuales,
+        )
+        if e.situacion != Situacion.AL_DIA:
+            pendientes.append((estado, plan, vehiculo, e))
+
+    tareas = tareas_de(db, list({plan.id for _, plan, _, _ in pendientes}))
+    items = [
+        PrevisionItem(
+            vehiculo_id=v.id,
+            matricula=v.matricula,
+            tipo_id=v.tipo_id,
+            centro_id=v.centro_id,
+            km_actuales=v.km_actuales,
+            plan_id=p.id,
+            plan_nombre=p.nombre,
+            tareas=tareas[p.id],
+            situacion=e.situacion,
+            motivo=e.motivo,
+            proxima_fecha=est.proxima_fecha,
+            proximos_km=est.proximos_km,
+            dias_restantes=e.dias_restantes,
+            km_restantes=e.km_restantes,
+            urgencia=urgencia(e),
+        )
+        for est, p, v, e in pendientes
+    ]
+    # Lo más urgente primero; a igual urgencia, por matrícula y plan (orden estable).
+    items.sort(key=lambda i: (i.urgencia, i.matricula, i.plan_nombre))
+    return items

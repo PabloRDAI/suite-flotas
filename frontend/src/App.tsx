@@ -17,6 +17,7 @@ const FichaVehiculo = lazy(() => import('./pantallas/FichaVehiculo.tsx'))
 const EstadoSistema = lazy(() => import('./pantallas/EstadoSistema.tsx'))
 const Personal = lazy(() => import('./pantallas/Personal.tsx'))
 const FichaPersona = lazy(() => import('./pantallas/FichaPersona.tsx'))
+const Taller = lazy(() => import('./pantallas/Taller.tsx'))
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="/vehiculos/:id" element={<FichaVehiculo />} />
           <Route path="/personal" element={<Personal />} />
           <Route path="/personal/:id" element={<FichaPersona />} />
+          <Route path="/taller" element={<Taller />} />
           <Route path="/sistema" element={<EstadoSistema />} />
         </Route>
 
