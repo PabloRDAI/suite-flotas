@@ -8,7 +8,9 @@ from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
+from app.db import engine
 from app.main import app
 
 
@@ -20,3 +22,26 @@ def client() -> Iterator[TestClient]:
     # Al terminar cada test se limpian las sustituciones de dependencias,
     # para que un test no afecte a los siguientes.
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def db() -> Iterator[Session]:
+    """Sesión de base de datos cuyos cambios se DESHACEN al acabar el test.
+
+    Requiere PostgreSQL en marcha y las migraciones aplicadas (alembic upgrade head).
+
+    Cómo funciona:
+    1. Abrimos una conexión y empezamos una transacción "exterior".
+    2. La sesión trabaja dentro de ella usando savepoints (puntos de guardado):
+       si un test provoca un error de la BD, solo se deshace hasta el savepoint.
+    3. Al terminar, deshacemos la transacción exterior: la BD queda como estaba.
+    """
+    conexion = engine.connect()
+    transaccion = conexion.begin()
+    sesion = Session(bind=conexion, join_transaction_mode="create_savepoint")
+    try:
+        yield sesion
+    finally:
+        sesion.close()
+        transaccion.rollback()
+        conexion.close()

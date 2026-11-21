@@ -2,7 +2,7 @@
 
 from collections.abc import Iterator
 
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -25,8 +25,22 @@ engine = create_engine(
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
+# Convención de nombres para índices y restricciones. Así cada restricción tiene
+# un nombre predecible (p. ej. "uq_vehiculo_empresa_id_matricula") y Alembic
+# puede modificarla o borrarla sin problemas en migraciones futuras.
+CONVENCION_NOMBRES = {
+    "ix": "ix_%(column_0_N_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_N_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_N_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+
 class Base(DeclarativeBase):
-    """Clase base de la que heredarán todos los modelos (tablas)."""
+    """Clase base de la que heredan todos los modelos (tablas)."""
+
+    metadata = MetaData(naming_convention=CONVENCION_NOMBRES)
 
 
 def get_db() -> Iterator[Session]:

@@ -7,6 +7,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 
+import app.models  # noqa: F401  (registra todos los modelos en Base.metadata)
 from alembic import context
 from app.config import get_settings
 from app.db import Base
@@ -24,8 +25,7 @@ if config.config_file_name is not None:
 
 # Metadatos de nuestros modelos. Con esto, "alembic revision --autogenerate"
 # compara las clases Python con las tablas reales y genera la migración.
-# IMPORTANTE: importar aquí los módulos de modelos para que
-# se registren en Base.metadata, p. ej.:  import app.models  # noqa: F401
+# Los modelos nuevos deben importarse en app/models/__init__.py para que se vean.
 target_metadata = Base.metadata
 
 

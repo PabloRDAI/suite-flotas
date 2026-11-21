@@ -8,8 +8,10 @@ API REST con **FastAPI**, **SQLAlchemy** y **Alembic** sobre PostgreSQL, tests c
 backend/
 ├── app/
 │   ├── config.py      Configuración leída del .env (DATABASE_URL…)
-│   ├── db.py          Conexión a PostgreSQL: engine, sesiones y Base de los modelos
-│   └── main.py        Aplicación FastAPI y endpoints
+│   ├── db.py          Conexión a PostgreSQL: engine, sesiones, Base y convención de nombres
+│   ├── main.py        Aplicación FastAPI y endpoints
+│   └── models/        Modelos (tablas): empresa, centro, usuario, tipo_vehiculo, vehiculo
+│       └── comun.py   Mixins reutilizables (empresa_id, fechas) y columnas de tipo enum
 ├── alembic/           Migraciones de la base de datos
 │   ├── env.py         Conecta Alembic con app.config y app.db.Base
 │   └── versions/      Un archivo por cada cambio del esquema
@@ -52,7 +54,21 @@ uvicorn app.main:app --reload
 pytest
 ```
 
-`test_salud_ok_con_base_de_datos` necesita PostgreSQL en marcha.
+Los tests que usan la base de datos necesitan PostgreSQL en marcha y las migraciones
+aplicadas (`alembic upgrade head`). Cada test trabaja dentro de una transacción que se
+deshace al terminar (fixture `db` en `tests/conftest.py`), así que no deja datos.
+
+## Reglas que hace cumplir la base de datos
+
+| Regla | Restricción |
+|---|---|
+| Toda tabla (salvo `empresa`) va ligada a una empresa — GEN-01 | `empresa_id NOT NULL` + FK |
+| El centro y el tipo de un vehículo son de su misma empresa — GEN-01 | FK compuestas `(empresa_id, centro_id)` y `(empresa_id, tipo_id)` |
+| Matrícula única dentro de la empresa — FLO-01 | `uq_vehiculo_empresa_id_matricula` |
+| Nombre de centro y de tipo únicos dentro de la empresa | `uq_centro_empresa_id_nombre`, `uq_tipo_vehiculo_empresa_id_nombre` |
+| Email de usuario único | `uq_usuario_email` |
+| Estados, roles, combustibles… solo valores válidos | `CHECK` de cada columna enum |
+| Km ≥ 0, año entre 1950 y 2100, capacidad > 0 | `ck_vehiculo_*` |
 
 ## Migraciones (chuleta)
 
@@ -63,6 +79,7 @@ pytest
 | `alembic current` | Muestra en qué migración está la BD |
 | `alembic history` | Lista todas las migraciones |
 | `alembic revision --autogenerate -m "mensaje"` | Genera una migración comparando los modelos con la BD |
+| `alembic check` | Falla si hay cambios en los modelos sin migración (lo ejecuta también CI) |
 
 Revisa siempre a mano las migraciones generadas con `--autogenerate` antes de aplicarlas.
 
