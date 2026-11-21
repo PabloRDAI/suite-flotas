@@ -62,6 +62,34 @@ export type Vencimiento = {
   vigente: boolean
 }
 
+export type Puesto = 'conductor' | 'mecanico' | 'trafico' | 'otro'
+
+export type Persona = {
+  id: number
+  nombre: string
+  puesto: Puesto
+  centro_id: number
+  fecha_alta: string
+  activo: boolean
+  fecha_baja: string | null
+  usuario_id: number | null
+  semaforo: Semaforo // peor semáforo de su documentación vigente (PER-02)
+}
+
+export type Asignacion = {
+  id: number
+  persona_id: number
+  persona_nombre: string
+  vehiculo_id: number
+  matricula: string
+  desde: string
+  hasta: string | null
+  habitual: boolean
+  notas: string | null
+  vigente: boolean
+  avisos: string[] // PER-04: documentación caducada del conductor (no bloquea)
+}
+
 export type VehiculoPanel = {
   id: number
   matricula: string

@@ -7,7 +7,18 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './cliente.ts'
-import type { Aptitud, Centro, LecturaKm, Panel, TipoVehiculo, Usuario, Vehiculo, Vencimiento } from './tipos.ts'
+import type {
+  Aptitud,
+  Asignacion,
+  Centro,
+  LecturaKm,
+  Panel,
+  Persona,
+  TipoVehiculo,
+  Usuario,
+  Vehiculo,
+  Vencimiento,
+} from './tipos.ts'
 
 // Claves de caché en un solo sitio, para no equivocarse al invalidarlas.
 export const claves = {
@@ -20,6 +31,82 @@ export const claves = {
   vencimientos: (id: number) => ['vehiculo', id, 'vencimientos'] as const,
   aptitud: (id: number) => ['vehiculo', id, 'aptitud'] as const,
   panel: (centroId: string | null, tipoId: string | null) => ['panel', { centroId, tipoId }] as const,
+  asignacionesVehiculo: (id: number) => ['vehiculo', id, 'asignaciones'] as const,
+  personas: (incluirBajas: boolean) => ['personas', { incluirBajas }] as const,
+  persona: (id: number) => ['persona', id] as const,
+  vencimientosPersona: (id: number) => ['persona', id, 'vencimientos'] as const,
+  asignacionesPersona: (id: number) => ['persona', id, 'asignaciones'] as const,
+}
+
+// --- Personal (PER-01, PER-02) -----------------------------------------------
+
+export const usePersonas = (incluirBajas: boolean) =>
+  useQuery({
+    queryKey: claves.personas(incluirBajas),
+    queryFn: () => api<Persona[]>(`/personas${incluirBajas ? '?incluir_bajas=true' : ''}`),
+  })
+
+export const usePersona = (id: number) =>
+  useQuery({ queryKey: claves.persona(id), queryFn: () => api<Persona>(`/personas/${id}`) })
+
+export const useVencimientosPersona = (id: number) =>
+  useQuery({ queryKey: claves.vencimientosPersona(id), queryFn: () => api<Vencimiento[]>(`/personas/${id}/vencimientos`) })
+
+// --- Asignaciones (PER-03, PER-04) -------------------------------------------
+
+export const useAsignacionesVehiculo = (id: number) =>
+  useQuery({
+    queryKey: claves.asignacionesVehiculo(id),
+    queryFn: () => api<Asignacion[]>(`/vehiculos/${id}/asignaciones`),
+  })
+
+export const useAsignacionesPersona = (id: number) =>
+  useQuery({
+    queryKey: claves.asignacionesPersona(id),
+    queryFn: () => api<Asignacion[]>(`/personas/${id}/asignaciones`),
+  })
+
+/** Tras cualquier cambio en asignaciones, se refrescan las del vehículo y las de las personas. */
+function useRefrescarAsignaciones() {
+  const cliente = useQueryClient()
+  return () => {
+    void cliente.invalidateQueries({ queryKey: ['vehiculo'] })
+    void cliente.invalidateQueries({ queryKey: ['persona'] })
+  }
+}
+
+export type NuevaAsignacion = {
+  persona_id: number
+  vehiculo_id: number
+  desde?: string
+  hasta?: string
+  habitual: boolean
+  /** Si se indica, primero se finaliza esa asignación (cambio de conductor habitual en un paso). */
+  finalizarAntes?: number
+}
+
+/** Asignar un conductor (PER-03). Devuelve la asignación con sus avisos (PER-04). */
+export function useAsignar() {
+  const refrescar = useRefrescarAsignaciones()
+  return useMutation({
+    mutationFn: async ({ finalizarAntes, ...datos }: NuevaAsignacion) => {
+      if (finalizarAntes !== undefined) {
+        await api<Asignacion>(`/asignaciones/${finalizarAntes}/finalizar`, { metodo: 'POST', cuerpo: {} })
+      }
+      return api<Asignacion>('/asignaciones', { metodo: 'POST', cuerpo: datos })
+    },
+    // onSettled (y no onSuccess): si se finalizó la anterior pero falló la nueva, hay que refrescar igual.
+    onSettled: refrescar,
+  })
+}
+
+/** Finalizar una asignación (por defecto termina ayer). */
+export function useFinalizarAsignacion() {
+  const refrescar = useRefrescarAsignaciones()
+  return useMutation({
+    mutationFn: (id: number) => api<Asignacion>(`/asignaciones/${id}/finalizar`, { metodo: 'POST', cuerpo: {} }),
+    onSuccess: refrescar,
+  })
 }
 
 /** Panel de flota (FLO-04): todo calculado en el servidor en una sola petición. */

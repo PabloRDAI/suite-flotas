@@ -1,5 +1,5 @@
 // Ficha de un vehículo: aptitud para salir (FLO-07) y pestañas de datos,
-// documentación (FLO-06) y lecturas de km (FLO-05).
+// documentación (FLO-06), asignaciones de conductor (PER-03, PER-04) y lecturas de km (FLO-05).
 
 import {
   Alert,
@@ -10,7 +10,6 @@ import {
   NumberInput,
   SimpleGrid,
   Stack,
-  Switch,
   Table,
   Tabs,
   Text,
@@ -18,12 +17,22 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconAlertTriangle, IconArrowLeft, IconCircleCheck, IconCircleX, IconFileCertificate, IconGauge, IconInfoCircle } from '@tabler/icons-react'
+import {
+  IconAlertTriangle,
+  IconArrowLeft,
+  IconCircleCheck,
+  IconCircleX,
+  IconFileCertificate,
+  IconGauge,
+  IconInfoCircle,
+  IconSteeringWheel,
+} from '@tabler/icons-react'
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { ErrorApi } from '../api/cliente.ts'
 import {
   useAptitud,
+  useAsignacionesVehiculo,
   useCentros,
   useLecturasKm,
   useRegistrarLectura,
@@ -32,14 +41,22 @@ import {
   useVencimientos,
 } from '../api/consultas.ts'
 import type { Aptitud, Vehiculo } from '../api/tipos.ts'
+import { useSesion } from '../auth/contexto.ts'
+import { puedeGestionarFlota } from '../auth/permisos.ts'
+import { AsignarConductor } from '../componentes/AsignarConductor.tsx'
 import { Cargando, ErrorCarga } from '../componentes/Carga.tsx'
-import { EstadoVehiculo, IndicadorSemaforo } from '../componentes/Indicadores.tsx'
+import { Documentacion } from '../componentes/Documentacion.tsx'
+import { HistorialAsignaciones } from '../componentes/HistorialAsignaciones.tsx'
+import { EstadoVehiculo } from '../componentes/Indicadores.tsx'
 import { etiqueta, formatoFecha, formatoKm, formatoNumero, hoyIso } from '../util/formato.ts'
 
 export default function FichaVehiculo() {
   const id = Number(useParams().id)
   const vehiculo = useVehiculo(id)
   const aptitud = useAptitud(id)
+  const asignaciones = useAsignacionesVehiculo(id)
+  const vencimientos = useVencimientos(id)
+  const habitual = asignaciones.data?.find((a) => a.vigente && a.habitual)
 
   if (vehiculo.isPending) return <Cargando />
   if (vehiculo.error) {
@@ -64,6 +81,14 @@ export default function FichaVehiculo() {
       </Group>
       <Text c="dimmed" mt={-12}>
         {v.marca} {v.modelo} · {v.anio}
+        {habitual && (
+          <>
+            {' · Conductor/a habitual: '}
+            <Anchor component={Link} to={`/personal/${habitual.persona_id}`}>
+              {habitual.persona_nombre}
+            </Anchor>
+          </>
+        )}
       </Text>
 
       {aptitud.data && <AvisoAptitud aptitud={aptitud.data} />}
@@ -76,6 +101,9 @@ export default function FichaVehiculo() {
           <Tabs.Tab value="documentacion" leftSection={<IconFileCertificate size={16} />}>
             Documentación
           </Tabs.Tab>
+          <Tabs.Tab value="asignaciones" leftSection={<IconSteeringWheel size={16} />}>
+            Asignaciones
+          </Tabs.Tab>
           <Tabs.Tab value="km" leftSection={<IconGauge size={16} />}>
             Km
           </Tabs.Tab>
@@ -84,7 +112,10 @@ export default function FichaVehiculo() {
           <PestanaDatos vehiculo={v} />
         </Tabs.Panel>
         <Tabs.Panel value="documentacion" pt="md">
-          <PestanaDocumentacion vehiculoId={v.id} />
+          <Documentacion consulta={vencimientos} />
+        </Tabs.Panel>
+        <Tabs.Panel value="asignaciones" pt="md">
+          <PestanaAsignaciones vehiculo={v} />
         </Tabs.Panel>
         <Tabs.Panel value="km" pt="md">
           <PestanaKm vehiculo={v} />
@@ -165,47 +196,18 @@ function PestanaDatos({ vehiculo: v }: { vehiculo: Vehiculo }) {
   )
 }
 
-/** FLO-06: documentos con semáforo. Por defecto solo los vigentes; el historial, opcional. */
-function PestanaDocumentacion({ vehiculoId }: { vehiculoId: number }) {
-  const vencimientos = useVencimientos(vehiculoId)
-  const [verHistorial, setVerHistorial] = useState(false)
+/** PER-03 y PER-04: historial de conductores y, para admin y tráfico, el formulario de asignación. */
+function PestanaAsignaciones({ vehiculo }: { vehiculo: Vehiculo }) {
+  const { usuario } = useSesion()
+  const asignaciones = useAsignacionesVehiculo(vehiculo.id)
+  const gestiona = puedeGestionarFlota(usuario) && vehiculo.activo
 
-  if (vencimientos.isPending) return <Cargando />
-  if (vencimientos.error) return <ErrorCarga error={vencimientos.error} />
-
-  const filas = vencimientos.data.filter((v) => verHistorial || v.vigente)
+  if (asignaciones.isPending) return <Cargando />
+  if (asignaciones.error) return <ErrorCarga error={asignaciones.error} />
   return (
     <Stack>
-      <Switch label="Ver documentos anteriores (ya renovados)" checked={verHistorial} onChange={(e) => setVerHistorial(e.currentTarget.checked)} />
-      {filas.length === 0 ? (
-        <Text c="dimmed">No hay documentación registrada.</Text>
-      ) : (
-        <Table.ScrollContainer minWidth={520}>
-          <Table striped>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Documento</Table.Th>
-                <Table.Th>Caduca</Table.Th>
-                <Table.Th ta="right">Días</Table.Th>
-                <Table.Th>Semáforo</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {filas.map((v) => (
-                <Table.Tr key={v.id} c={v.vigente ? undefined : 'dimmed'}>
-                  <Table.Td>
-                    {v.tipo_nombre}
-                    {!v.vigente && ' (renovado)'}
-                  </Table.Td>
-                  <Table.Td>{formatoFecha(v.fecha_caducidad)}</Table.Td>
-                  <Table.Td ta="right">{v.dias_restantes}</Table.Td>
-                  <Table.Td>{v.vigente ? <IndicadorSemaforo valor={v.semaforo} /> : '—'}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
-      )}
+      {gestiona && <AsignarConductor vehiculoId={vehiculo.id} asignaciones={asignaciones.data} />}
+      <HistorialAsignaciones asignaciones={asignaciones.data} mostrar="conductor" puedeFinalizar={gestiona} />
     </Stack>
   )
 }

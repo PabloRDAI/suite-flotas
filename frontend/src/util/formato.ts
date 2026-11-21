@@ -28,6 +28,13 @@ export function etiqueta(valor: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
+export const nombresPuesto: Record<string, string> = {
+  conductor: 'Conductor/a',
+  mecanico: 'Mecánico/a',
+  trafico: 'Tráfico',
+  otro: 'Otro',
+}
+
 export const nombresRol: Record<string, string> = {
   admin: 'Gerente',
   trafico: 'Tráfico',
