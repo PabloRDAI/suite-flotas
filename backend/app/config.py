@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # postgresql+psycopg://usuario:contraseña@localhost:5432/basedatos
     database_url: str
 
+    # Segundos máximos para ABRIR una conexión con PostgreSQL. Sin este límite,
+    # si la BD está parada la petición puede quedarse colgada más de un minuto.
+    db_connect_timeout: int = 3
+
     nombre_app: str = "Suite Flotas API"
 
 
