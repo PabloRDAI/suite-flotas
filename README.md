@@ -15,6 +15,18 @@ Suite de gestión para operadores de transporte (viajeros y mercancías) con flo
 
 La especificación completa está en [`docs/especificacion.md`](docs/especificacion.md).
 
+## Capturas
+
+Datos de la empresa de demostración (todo ficticio).
+
+**Panel de flota:** contadores por estado, alertas de documentación y quién puede salir hoy.
+
+![Panel de flota](docs/capturas/panel-flota.png)
+
+**Ficha de vehículo:** con la ITV caducada, el vehículo no es apto para salir aunque esté operativo.
+
+![Ficha de vehículo](docs/capturas/ficha-vehiculo.png)
+
 ## Stack
 
 | Parte | Tecnología |
