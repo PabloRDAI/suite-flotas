@@ -7,12 +7,13 @@
 """
 
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, StringConstraints, model_validator
 
 from app.models import AplicaA, Combustible, EstadoVehiculo, Puesto, RolUsuario, TipoCentro, UnidadCapacidad
+from app.reglas.estado_vehiculo import EstadoAveria, GravedadAveria
 from app.reglas.preventivo import Situacion
 from app.reglas.vencimientos import Semaforo
 
@@ -382,6 +383,41 @@ class RealizacionCrear(EntradaEstricta):
     km: Annotated[int, Field(ge=0)] | None = None
 
 
+# --- Averías (MAN-03) --------------------------------------------------------
+# Se comunican con un formulario multipart (por la foto), así que la entrada son
+# campos de formulario en el endpoint; aquí solo está la salida y la resolución.
+
+
+class AveriaSalida(BaseModel):
+    id: int
+    vehiculo_id: int
+    matricula: str
+    comunicada_por: str | None  # nombre del usuario (None si ya no existe)
+    comunicada_en: datetime
+    descripcion: str
+    gravedad: GravedadAveria
+    estado: EstadoAveria
+    tiene_foto: bool
+    resuelta_en: datetime | None
+    nota_resolucion: str | None
+    # Estado del vehículo tras la avería: "al instante" (criterio de MAN-03).
+    estado_vehiculo: EstadoVehiculo
+
+
+class AveriaResolver(EntradaEstricta):
+    nota: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+
+
+class VehiculoSugerido(BaseModel):
+    """Vehículo asignado al usuario (para preseleccionarlo al comunicar una avería)."""
+
+    id: int
+    matricula: str
+    marca: str
+    modelo: str
+    habitual: bool
+
+
 class VehiculoPanel(BaseModel):
     """Un vehículo en el panel, con su aptitud ya calculada."""
 
@@ -399,10 +435,10 @@ class VehiculoPanel(BaseModel):
 
 
 class AlertaPanel(BaseModel):
-    """Algo que requiere atención: documentación (FLO-06) y preventivos (MAN-02).
-    Más adelante, averías abiertas."""
+    """Algo que requiere atención: documentación (FLO-06), preventivos (MAN-02) y
+    averías abiertas (MAN-03)."""
 
-    tipo: Literal["vencimiento", "preventivo"]
+    tipo: Literal["vencimiento", "preventivo", "averia"]
     semaforo: Semaforo  # rojo: caducado / vencido · ámbar: caduca pronto / próximo
     vehiculo_id: int
     matricula: str

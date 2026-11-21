@@ -40,16 +40,22 @@ function mensajeDeError(cuerpo: unknown, status: number): string {
  * Hace una petición a la API y devuelve el JSON ya tipado.
  * Lanza ErrorApi si la respuesta no es correcta (4xx o 5xx).
  */
-export async function api<T>(ruta: string, opciones: { metodo?: string; cuerpo?: unknown } = {}): Promise<T> {
+export async function api<T>(
+  ruta: string,
+  opciones: { metodo?: string; cuerpo?: unknown; formulario?: FormData } = {},
+): Promise<T> {
   const token = tokenGuardado()
   const respuesta = await fetch(`/api${ruta}`, {
     method: opciones.metodo ?? 'GET',
     headers: {
+      // Con FormData (archivos) NO se pone Content-Type: el navegador añade el
+      // "multipart/form-data; boundary=…" correcto él solo.
       ...(opciones.cuerpo !== undefined ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: opciones.cuerpo !== undefined ? JSON.stringify(opciones.cuerpo) : undefined,
-    signal: AbortSignal.timeout(15_000), // toda petición de red con límite de espera
+    body: opciones.formulario ?? (opciones.cuerpo !== undefined ? JSON.stringify(opciones.cuerpo) : undefined),
+    // Toda petición de red con límite de espera (más amplio si se sube un archivo).
+    signal: AbortSignal.timeout(opciones.formulario ? 60_000 : 15_000),
   })
 
   if (respuesta.status === 204) return undefined as T // sin contenido (p. ej. tras un DELETE)
@@ -60,4 +66,19 @@ export async function api<T>(ruta: string, opciones: { metodo?: string; cuerpo?:
     throw new ErrorApi(respuesta.status, mensajeDeError(cuerpo, respuesta.status))
   }
   return cuerpo as T
+}
+
+/**
+ * Descarga un archivo protegido (p. ej. la foto de una avería) con el token de sesión.
+ * Un <img src="…"> no puede enviar la cabecera Authorization, así que se descarga
+ * aquí y se muestra con una URL local (URL.createObjectURL).
+ */
+export async function descargar(ruta: string): Promise<Blob> {
+  const token = tokenGuardado()
+  const respuesta = await fetch(`/api${ruta}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    signal: AbortSignal.timeout(30_000),
+  })
+  if (!respuesta.ok) throw new ErrorApi(respuesta.status, 'No se ha podido descargar el archivo')
+  return respuesta.blob()
 }

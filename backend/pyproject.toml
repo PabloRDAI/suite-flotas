@@ -13,6 +13,7 @@ dependencies = [
     "argon2-cffi>=23.1",         # hash seguro de contraseñas (Argon2)
     "pyjwt>=2.9",                # tokens de sesión firmados (JWT)
     "email-validator>=2.2",      # validar el formato de los emails (pydantic EmailStr)
+    "python-multipart>=0.0.18",  # recibir formularios con archivos (foto de las averías)
 ]
 
 [project.optional-dependencies]

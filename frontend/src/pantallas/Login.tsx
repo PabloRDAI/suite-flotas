@@ -8,7 +8,7 @@ export default function Login() {
   const { usuario, entrar } = useSesion()
   const navegar = useNavigate()
   const ubicacion = useLocation()
-  const destino = (ubicacion.state as { desde?: string } | null)?.desde ?? '/panel'
+  const destino = (ubicacion.state as { desde?: string } | null)?.desde ?? '/'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

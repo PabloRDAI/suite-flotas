@@ -12,6 +12,7 @@ from app.db import get_db
 from app.routers import (
     asignaciones,
     auth,
+    averias,
     centros,
     lecturas_km,
     panel,
@@ -36,6 +37,7 @@ app.include_router(vencimientos.router)
 app.include_router(personas.router)
 app.include_router(asignaciones.router)
 app.include_router(planes.router)
+app.include_router(averias.router)
 
 
 @app.get("/salud", tags=["sistema"])

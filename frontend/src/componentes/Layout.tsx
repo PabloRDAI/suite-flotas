@@ -3,16 +3,28 @@
 
 import { AppShell, Burger, Button, Group, NavLink, Text, Title } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { IconHeartbeat, IconLayoutDashboard, IconLogout, IconTool, IconTruck, IconUsers } from '@tabler/icons-react'
+import {
+  IconAlertOctagon,
+  IconCarCrash,
+  IconHeartbeat,
+  IconLayoutDashboard,
+  IconLogout,
+  IconTool,
+  IconTruck,
+  IconUsers,
+} from '@tabler/icons-react'
 import { NavLink as EnlaceRouter, Outlet } from 'react-router'
 import { useSesion } from '../auth/contexto.ts'
 import { nombresRol } from '../util/formato.ts'
 
 const MENU = [
+  { a: '/averias/nueva', texto: 'Comunicar avería', Icono: IconAlertOctagon },
   { a: '/panel', texto: 'Panel de flota', Icono: IconLayoutDashboard },
   { a: '/vehiculos', texto: 'Vehículos', Icono: IconTruck },
   { a: '/personal', texto: 'Personal', Icono: IconUsers },
   { a: '/taller', texto: 'Taller', Icono: IconTool },
+  // exacto: que no se marque también al estar en /averias/nueva (otra opción del menú).
+  { a: '/averias', texto: 'Averías', Icono: IconCarCrash, exacto: true },
   { a: '/sistema', texto: 'Estado del sistema', Icono: IconHeartbeat },
 ]
 
@@ -48,12 +60,13 @@ export default function Layout() {
       </AppShell.Header>
 
       <AppShell.Navbar p="xs">
-        {MENU.map(({ a, texto, Icono }) => (
+        {MENU.map(({ a, texto, Icono, exacto }) => (
           // NavLink de Mantine con el enlace de React Router: se marca solo cuando la URL coincide.
           <NavLink
             key={a}
             component={EnlaceRouter}
             to={a}
+            end={exacto}
             label={texto}
             leftSection={<Icono size={18} />}
             onClick={close}

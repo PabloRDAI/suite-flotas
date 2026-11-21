@@ -16,7 +16,8 @@ backend/
 │   ├── reglas/        Motor de reglas en Python puro (sin BD): estado_vehiculo.py (FLO-03),
 │   │                  km.py (FLO-05), vencimientos.py (FLO-06/07), asignaciones.py (PER-03/04),
 │   │                  preventivo.py (MAN-01)
-│   ├── servicios/     Unen las reglas con la BD (p. ej. actualizar_estado del vehículo)
+│   ├── servicios/     Unen las reglas con la BD (estado del vehículo, preventivos, demo…)
+│   │                  y adjuntos.py: guardar y servir fotos con seguridad
 │   ├── routers/       Endpoints agrupados por área (auth, vehiculos, lecturas_km…)
 │   ├── scripts/       Comandos de línea (crear_admin)
 │   └── models/        Modelos (tablas): empresa, centro, usuario, vehículos, lecturas de km,
@@ -109,7 +110,7 @@ Crea 2 centros, 5 tipos de vehículo, 25 vehículos con ~6 meses de lecturas de 
 vencimientos con casos en rojo (2 vehículos no aptos) y en ámbar, y 30 personas (20 conductores,
 5 mecánicos, 3 de tráfico y 2 de otros puestos) con su documentación, también con casos en rojo y ámbar, y 27 asignaciones
 conductor-vehículo con historial y un aviso de documentación caducada, y 9 planes preventivos
-con 2 vencidos (uno por km y otro por fecha) y 2 próximos. Usuarios `admin`, `trafico`, `taller` y `conductor` `@demo.example.com`
+con 2 vencidos (uno por km y otro por fecha) y 2 próximos, y 4 averías (una que inmoviliza). Usuarios `admin`, `trafico`, `taller` y `conductor` `@demo.example.com`
 con la contraseña `demostracion`. Todo es inventado; los datos son siempre los mismos (semilla
 fija) y las fechas se calculan desde el día en que se ejecuta. El historial de mantenimiento se
 añadirá cuando existan sus tablas.
@@ -141,7 +142,7 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | Método | Ruta | Roles | Descripción |
 |---|---|---|---|
 | GET | `/salud` | público | 200 si la API y la BD funcionan; 503 si la BD no responde |
-| GET | `/panel` | todos | Panel de flota: contadores, vehículos con aptitud y alertas de documentación y preventivos (filtros `centro_id`, `tipo_id`) |
+| GET | `/panel` | todos | Panel de flota: contadores, vehículos con aptitud y alertas de averías, documentación y preventivos (filtros `centro_id`, `tipo_id`) |
 | POST | `/auth/login` | público | Email + contraseña → token de sesión |
 | GET | `/auth/yo` | todos | Datos del usuario conectado |
 | GET | `/centros` | todos | Centros activos de la empresa |
@@ -178,6 +179,11 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | POST | `/planes` | admin, taller | Crear un plan (km, días o ambos); los vehículos de ese tipo empiezan a contar desde hoy |
 | GET/PATCH/DELETE | `/planes/{id}` | todos / admin, taller | Ver, editar (recalcula los próximos) o dar de baja |
 | GET | `/vehiculos/{id}/preventivos` | todos | Situación de cada plan en el vehículo (vencidos primero) |
+| GET | `/averias/vehiculos-sugeridos` | todos | Vehículos asignados al usuario (para preseleccionar) |
+| POST | `/averias` | todos | Comunicar avería (multipart: `vehiculo_id`, `descripcion`, `gravedad`, `foto` opcional) |
+| GET | `/averias` | todos | Averías (abiertas por defecto; `abiertas=false`, `vehiculo_id`, `gravedad`) |
+| GET | `/averias/{id}` y `/averias/{id}/foto` | todos | Una avería y su foto (solo de la propia empresa) |
+| POST | `/averias/{id}/resolver` | admin, taller | Resolver con nota; recalcula el estado del vehículo |
 | GET | `/preventivos/prevision` | todos | Previsión (MAN-02): vencidos y lo que toca en 30 días o 2.000 km, por urgencia (filtros `centro_id`, `tipo_id`) |
 | POST | `/vehiculos/{id}/preventivos/{plan_id}/realizado` | admin, taller | Registrar que se hizo (fecha y km) y recalcular |
 
@@ -221,6 +227,12 @@ fracción del margen que queda (días / 30 o km / 2.000, lo que llegue antes). N
 cuanto más negativo más atrasado. Un test comprueba que la lista coincide con el cálculo directo
 del motor. Los mismos preventivos aparecen como alertas del panel (rojo vencido, ámbar próximo);
 un preventivo vencido avisa, pero no impide salir.
+
+**Averías (MAN-03):** cualquier rol puede comunicarlas; una avería que "inmoviliza" deja el
+vehículo inmovilizado en la misma petición (el motor de estado lee ahora las averías no resueltas)
+y la respuesta trae el estado nuevo. Las fotos (JPEG, PNG o WebP, máx. 5 MB) se validan por su
+firma de bytes, se guardan con nombre aleatorio en `CARPETA_ADJUNTOS` (por defecto `uploads/`,
+fuera de Git) y solo se sirven con sesión y a la propia empresa.
 
 **Estado del vehículo (FLO-03, regla 1):** de baja si está inactivo; en taller si tiene una OT
 abierta que inmoviliza; inmovilizado si tiene una avería "inmoviliza" sin OT abierta; si no,

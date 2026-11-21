@@ -180,12 +180,15 @@ def test_panel_de_la_empresa_demo(api: TestClient, db: Session) -> None:
     datos = panel(api, {"Authorization": f"Bearer {token['access_token']}"})
 
     assert datos["contadores"]["total"] == 25
-    assert datos["contadores"]["no_aptos"] == 2
+    assert datos["contadores"]["no_aptos"] == 3  # 2 por documentación + 1 inmovilizado por avería
+    assert datos["contadores"]["inmovilizado"] == 1
     por_tipo = Counter((a["tipo"], a["semaforo"]) for a in datos["alertas"])
     assert por_tipo == {
         ("vencimiento", "rojo"): 3, ("vencimiento", "ambar"): 3,  # documentación (FLO-06)
         ("preventivo", "rojo"): 2, ("preventivo", "ambar"): 2,  # mantenimiento (MAN-02)
+        ("averia", "rojo"): 1, ("averia", "ambar"): 2,  # averías abiertas (MAN-03)
     }
+    assert datos["alertas"][0]["tipo"] == "averia"  # lo más urgente: el vehículo inmovilizado
 
 
 @pytest.mark.parametrize(

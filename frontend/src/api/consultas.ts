@@ -6,11 +6,13 @@
 //              consultas afectadas para que se vuelvan a pedir con los datos nuevos.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from './cliente.ts'
+import { api, descargar } from './cliente.ts'
 import type {
   Aptitud,
   Asignacion,
+  Averia,
   Centro,
+  Gravedad,
   LecturaKm,
   Panel,
   Persona,
@@ -19,6 +21,7 @@ import type {
   TipoVehiculo,
   Usuario,
   Vehiculo,
+  VehiculoSugerido,
   Vencimiento,
 } from './tipos.ts'
 
@@ -204,5 +207,67 @@ export function useRegistrarRealizacion() {
       void cliente.invalidateQueries({ queryKey: ['prevision'] })
       void cliente.invalidateQueries({ queryKey: ['panel'] })
     },
+  })
+}
+
+// --- Averías (MAN-03) --------------------------------------------------------
+
+export const useAverias = (abiertas: boolean, gravedad: string | null = null) =>
+  useQuery({
+    queryKey: ['averias', { abiertas, gravedad }],
+    queryFn: () => {
+      const filtros = new URLSearchParams({ abiertas: String(abiertas) })
+      if (gravedad) filtros.set('gravedad', gravedad)
+      return api<Averia[]>(`/averias?${filtros}`)
+    },
+  })
+
+/** Vehículos asignados al usuario: para preseleccionar al comunicar una avería. */
+export const useVehiculosSugeridos = () =>
+  useQuery({ queryKey: ['averias', 'sugeridos'], queryFn: () => api<VehiculoSugerido[]>('/averias/vehiculos-sugeridos') })
+
+/** Foto de una avería como URL local (se descarga con el token; ver descargar() en cliente.ts). */
+export const useFotoAveria = (averiaId: number, activa: boolean) =>
+  useQuery({
+    queryKey: ['averias', averiaId, 'foto'],
+    queryFn: async () => URL.createObjectURL(await descargar(`/averias/${averiaId}/foto`)),
+    enabled: activa,
+    staleTime: Infinity, // una foto no cambia
+  })
+
+/** Al comunicar o resolver una avería cambian el estado del vehículo, el panel y las listas. */
+function useRefrescarTrasAveria() {
+  const cliente = useQueryClient()
+  return () => {
+    for (const clave of [['averias'], ['vehiculo'], ['vehiculos'], ['panel']]) {
+      void cliente.invalidateQueries({ queryKey: clave })
+    }
+  }
+}
+
+export type NuevaAveria = { vehiculoId: number; descripcion: string; gravedad: Gravedad; foto: File | null }
+
+export function useComunicarAveria() {
+  const refrescar = useRefrescarTrasAveria()
+  return useMutation({
+    mutationFn: ({ vehiculoId, descripcion, gravedad, foto }: NuevaAveria) => {
+      // Formulario multipart (por la foto), no JSON.
+      const formulario = new FormData()
+      formulario.set('vehiculo_id', String(vehiculoId))
+      formulario.set('descripcion', descripcion)
+      formulario.set('gravedad', gravedad)
+      if (foto) formulario.set('foto', foto)
+      return api<Averia>('/averias', { metodo: 'POST', formulario })
+    },
+    onSuccess: refrescar,
+  })
+}
+
+export function useResolverAveria() {
+  const refrescar = useRefrescarTrasAveria()
+  return useMutation({
+    mutationFn: ({ id, nota }: { id: number; nota: string }) =>
+      api<Averia>(`/averias/${id}/resolver`, { metodo: 'POST', cuerpo: { nota: nota || null } }),
+    onSuccess: refrescar,
   })
 }

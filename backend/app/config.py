@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # Minutos que dura una sesión antes de tener que volver a hacer login.
     jwt_minutos: int = 480
 
+    # Carpeta donde se guardan los archivos subidos (fotos de averías). Está en
+    # .gitignore: son datos, no código. En producción, un disco persistente.
+    carpeta_adjuntos: Path = RAIZ_REPO / "uploads"
+    # Tamaño máximo de una foto (MB).
+    max_foto_mb: int = 5
+
     nombre_app: str = "Suite Flotas API"
 
 

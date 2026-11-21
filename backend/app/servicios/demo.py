@@ -10,14 +10,14 @@ Todo es inventado: nombre de empresa, marcas, matrículas y emails
 "hoy", así que siempre hay vencimientos en rojo y en ámbar para enseñar.
 
 Incluye 30 personas con su documentación (PER-01, PER-02) y sus asignaciones a
-vehículos con historial (PER-03), y planes de mantenimiento preventivo con su estado
-en cada vehículo (MAN-01). Pendiente de ampliar
+vehículos con historial (PER-03), planes de mantenimiento preventivo con su estado
+en cada vehículo (MAN-01) y averías comunicadas (MAN-03). Pendiente de ampliar
 cuando existan sus tablas: 6 meses de historial de mantenimiento.
 """
 
 import random
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from app.models import (
     AplicaA,
     Asignacion,
+    Averia,
     Centro,
     Combustible,
     Empresa,
@@ -44,9 +45,11 @@ from app.models import (
     Vencimiento,
 )
 from app.reglas.asignaciones import avisos_de_documentacion
+from app.reglas.estado_vehiculo import EstadoAveria, GravedadAveria
 from app.reglas.preventivo import Situacion, calcular_proximo, evaluar
 from app.reglas.vencimientos import Documento, Semaforo, aptitud_para_salir, semaforo, vigentes
 from app.seguridad import hash_password
+from app.servicios.adjuntos import borrar_foto
 from app.servicios.estado_vehiculo import actualizar_estado
 from app.servicios.preventivos import recalcular
 
@@ -173,6 +176,14 @@ CASOS_ESPECIALES_PREVENTIVO = {
     8: ("Mantenimiento A", "proximo_km"),
     9: ("Mantenimiento A", "proximo_fecha"),  # el primer microbús
 }
+
+# Averías de la demo: nº de vehículo -> (gravedad, descripción, ¿resuelta?, hace cuántos días)
+AVERIAS_DEMO = [
+    (10, GravedadAveria.INMOVILIZA, "No arranca: la batería no carga y salta un fallo eléctrico", False, 0),
+    (11, GravedadAveria.GRAVE, "Ruido metálico en la caja de cambios al reducir de marcha", False, 1),
+    (12, GravedadAveria.LEVE, "El retrovisor derecho vibra en carretera", False, 2),
+    (13, GravedadAveria.LEVE, "Luz de cortesía del pasillo fundida", True, 9),
+]
 
 # Casos especiales para que el panel tenga de todo: nº de vehículo -> (documento, días hasta caducar)
 CASOS_ESPECIALES = {
@@ -410,10 +421,15 @@ def buscar_empresa_demo(db: Session) -> int | None:
 
 
 def borrar_empresa(db: Session, empresa_id: int) -> None:
-    """Borra una empresa y TODOS sus datos, en orden (de las tablas hijas a la empresa)."""
+    """Borra una empresa y TODOS sus datos, en orden (de las tablas hijas a la empresa).
+
+    Incluidos los archivos de las fotos de sus averías: si no, quedarían huérfanos en disco.
+    """
+    for foto in db.scalars(select(Averia.foto).where(Averia.empresa_id == empresa_id, Averia.foto.is_not(None))):
+        borrar_foto(foto)
     # Asignacion y Vencimiento antes que Vehiculo y Persona; Persona antes que Usuario (lo referencia).
     for modelo in (
-        Asignacion, Vencimiento, EstadoPlan, LecturaKm, Vehiculo, Persona,
+        Averia, Asignacion, Vencimiento, EstadoPlan, LecturaKm, Vehiculo, Persona,
         TareaPlan, PlanMantenimiento, TipoVencimiento, TipoVehiculo, Centro, Usuario,
     ):
         db.execute(delete(modelo).where(modelo.empresa_id == empresa_id))
@@ -463,6 +479,7 @@ def crear_empresa_demo(
     en_ambar: list[str] = []
     n_lecturas = n_vencimientos = 0
     vehiculos_creados: list[Vehiculo] = []
+    docs_por_vehiculo: dict[int, list[Documento]] = {}
     for p in planificar_demo(hoy):
         vehiculo = Vehiculo(
             empresa_id=eid,
@@ -488,15 +505,11 @@ def crear_empresa_demo(
         n_lecturas += len(p.lecturas)
         n_vencimientos += len(p.vencimientos)
 
-        # Resumen con las mismas reglas que usa la API.
-        docs = [
+        # Documentos para el resumen (se calcula al final, cuando ya hay averías).
+        docs_por_vehiculo[vehiculo.id] = [
             Documento(tipos_venc[n].id, n, f, tipos_venc[n].dias_aviso, tipos_venc[n].bloquea_salida)
             for n, f in p.vencimientos
         ]
-        if not aptitud_para_salir(True, vehiculo.estado, docs, hoy).apto:
-            no_aptos.append(p.matricula)
-        if any(semaforo(d.fecha_caducidad, d.dias_aviso, hoy) == Semaforo.AMBAR for d in vigentes(docs)):
-            en_ambar.append(p.matricula)
 
     # Personal (PER-01) con su documentación (PER-02).
     usuario_por_rol = {u.rol: u for u in usuarios}
@@ -585,6 +598,31 @@ def crear_empresa_demo(
             preventivos_vencidos.append(f"{vehiculo.matricula}: {prev.plan} ({e.motivo})")
         elif e.situacion == Situacion.PROXIMO:
             preventivos_proximos.append(f"{vehiculo.matricula}: {prev.plan} ({e.motivo})")
+
+    # Averías (MAN-03), comunicadas por el conductor demo. El estado lo recalcula el motor.
+    conductor_demo = next(u for u in usuarios if u.rol == RolUsuario.CONDUCTOR)
+    for n, gravedad, descripcion, resuelta, hace in AVERIAS_DEMO:
+        vehiculo = vehiculos_creados[n]
+        cuando = datetime.combine(hoy - timedelta(days=hace), time(9, 30), tzinfo=UTC)
+        db.add(
+            Averia(
+                empresa_id=eid, vehiculo_id=vehiculo.id, comunicada_por_id=conductor_demo.id,
+                comunicada_en=cuando, descripcion=descripcion, gravedad=gravedad,
+                estado=EstadoAveria.RESUELTA if resuelta else EstadoAveria.COMUNICADA,
+                resuelta_en=cuando + timedelta(days=1) if resuelta else None,
+                nota_resolucion="Sustituida" if resuelta else None,
+            )
+        )
+        db.flush()
+        actualizar_estado(db, vehiculo)
+
+    # Resumen con las mismas reglas que usa la API (ya con el estado final de cada vehículo).
+    for vehiculo in vehiculos_creados:
+        docs = docs_por_vehiculo[vehiculo.id]
+        if not aptitud_para_salir(True, vehiculo.estado, docs, hoy).apto:
+            no_aptos.append(vehiculo.matricula)
+        if any(semaforo(d.fecha_caducidad, d.dias_aviso, hoy) == Semaforo.AMBAR for d in vigentes(docs)):
+            en_ambar.append(vehiculo.matricula)
 
     db.flush()
     return ResumenDemo(

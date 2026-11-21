@@ -4,8 +4,8 @@ Rendimiento ("carga en menos de 1 s con 150 vehículos"): todo sale de DOS
 consultas (los vehículos y todos sus vencimientos de una vez) y las reglas se
 aplican en memoria. Pedir la aptitud vehículo a vehículo serían 150 consultas.
 
-Alertas: documentación caducada o a punto de caducar (FLO-06) y preventivos
-vencidos o próximos (MAN-02). Más adelante, averías abiertas.
+Alertas: averías abiertas (MAN-03), documentación caducada o a punto de caducar
+(FLO-06) y preventivos vencidos o próximos (MAN-02).
 
 Coherencia ("totales que coinciden con el listado filtrado"): contadores,
 tabla y alertas se calculan sobre la misma lista de vehículos.
@@ -16,7 +16,8 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import AplicaA, EstadoVehiculo, Vehiculo
+from app.models import AplicaA, Averia, EstadoVehiculo, Vehiculo
+from app.reglas.estado_vehiculo import EstadoAveria, GravedadAveria
 from app.reglas.vencimientos import Semaforo, aptitud_para_salir, dias_restantes, semaforo, vigentes
 from app.schemas import AlertaPanel, ContadoresPanel, PanelSalida, VehiculoPanel
 from app.reglas.preventivo import Situacion
@@ -102,14 +103,42 @@ def calcular_panel(
             )
         )
 
-    # Lo más urgente primero: rojos, luego ámbar. Dentro de cada color, primero la
-    # documentación (impide salir) por fecha, y después los preventivos en su orden de urgencia.
-    def clave(a: AlertaPanel) -> tuple[int, int, int, str]:
-        es_preventivo = a.tipo == "preventivo"
-        dias = 0 if es_preventivo else (a.dias_restantes or 0)
-        return (_ORDEN_URGENCIA[a.semaforo], int(es_preventivo), dias, a.matricula if not es_preventivo else "")
+    # Averías abiertas (MAN-03): las que inmovilizan en rojo; graves y leves en ámbar.
+    if vehiculos:
+        matricula = {v.id: v.matricula for v in vehiculos}
+        abiertas = db.scalars(
+            select(Averia)
+            .where(Averia.vehiculo_id.in_(matricula), Averia.estado != EstadoAveria.RESUELTA)
+            .order_by(Averia.comunicada_en)
+        )
+        for a in abiertas:
+            descripcion = a.descripcion if len(a.descripcion) <= 60 else a.descripcion[:57] + "…"
+            alertas.append(
+                AlertaPanel(
+                    tipo="averia",
+                    semaforo=Semaforo.ROJO if a.gravedad == GravedadAveria.INMOVILIZA else Semaforo.AMBAR,
+                    vehiculo_id=a.vehiculo_id,
+                    matricula=matricula[a.vehiculo_id],
+                    mensaje=f"Avería ({a.gravedad.replace('_', ' ')}): {descripcion}",
+                    fecha=a.comunicada_en.date(),
+                    dias_restantes=None,
+                )
+            )
 
-    alertas.sort(key=clave)  # sort es estable: los preventivos conservan su orden de urgencia
+    # Lo más urgente primero: rojos, luego ámbar. Dentro de cada color: averías (un vehículo
+    # parado o con un problema), documentación (por fecha) y preventivos (en su orden de urgencia).
+    orden_tipo = {"averia": 0, "vencimiento": 1, "preventivo": 2}
+
+    def clave(a: AlertaPanel) -> tuple[int, int, int, str]:
+        por_fecha = a.tipo == "vencimiento"
+        return (
+            _ORDEN_URGENCIA[a.semaforo],
+            orden_tipo[a.tipo],
+            (a.dias_restantes or 0) if por_fecha else 0,
+            a.matricula if por_fecha else "",
+        )
+
+    alertas.sort(key=clave)  # sort es estable: averías y preventivos conservan su orden
 
     def contar(estado: EstadoVehiculo) -> int:
         return sum(1 for f in filas_panel if f.estado == estado)

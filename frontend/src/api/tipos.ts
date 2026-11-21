@@ -105,13 +105,41 @@ export type VehiculoPanel = {
 }
 
 export type AlertaPanel = {
-  tipo: 'vencimiento' | 'preventivo' // documentación (FLO-06) o mantenimiento (MAN-02)
+  tipo: 'vencimiento' | 'preventivo' | 'averia' // documentación (FLO-06), preventivo (MAN-02) o avería (MAN-03)
   semaforo: Semaforo
   vehiculo_id: number
   matricula: string
   mensaje: string
   fecha: string | null // un preventivo solo por km no tiene fecha
   dias_restantes: number | null
+}
+
+// --- Averías (MAN-03) ---
+
+export type Gravedad = 'leve' | 'grave' | 'inmoviliza'
+export type EstadoAveria = 'comunicada' | 'en_reparacion' | 'resuelta'
+
+export type Averia = {
+  id: number
+  vehiculo_id: number
+  matricula: string
+  comunicada_por: string | null
+  comunicada_en: string // fecha y hora ISO
+  descripcion: string
+  gravedad: Gravedad
+  estado: EstadoAveria
+  tiene_foto: boolean
+  resuelta_en: string | null
+  nota_resolucion: string | null
+  estado_vehiculo: EstadoVehiculo // tras la avería: "al instante" (MAN-03)
+}
+
+export type VehiculoSugerido = {
+  id: number
+  matricula: string
+  marca: string
+  modelo: string
+  habitual: boolean
 }
 
 // --- Mantenimiento preventivo (MAN-01, MAN-02) ---

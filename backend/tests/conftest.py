@@ -10,6 +10,7 @@ la crea si no existe y le aplica las migraciones.
 """
 
 import os
+import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -26,7 +27,9 @@ if _url_tests.database == _url_desarrollo.database:
     raise RuntimeError("La base de datos de tests no puede ser la de desarrollo")
 
 os.environ["DATABASE_URL"] = _url_tests.render_as_string(hide_password=False)
-get_settings.cache_clear()  # para que la aplicación lea la nueva DATABASE_URL
+# Igual con los archivos subidos: los tests usan una carpeta temporal, nunca tu uploads/.
+os.environ["CARPETA_ADJUNTOS"] = tempfile.mkdtemp(prefix="suite-flotas-tests-")
+get_settings.cache_clear()  # para que la aplicación lea la nueva configuración
 
 
 def _preparar_bd_de_tests() -> None:

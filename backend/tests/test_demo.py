@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
+
 from app.models import Asignacion, Centro, Empresa, EstadoPlan, LecturaKm, Persona, RolUsuario, Usuario, Vehiculo
 from app.reglas.asignaciones import AsignacionExistente, Periodo, comprobar_habitual
 from app.reglas.km import Lectura, comprobar_lectura
@@ -94,10 +96,10 @@ def test_km_actuales_son_los_de_la_ultima_lectura(db: Session) -> None:
 
 
 def test_hay_casos_para_enseñar_en_el_panel(db: Session) -> None:
-    """2 vehículos no aptos (ITV y seguro caducados) y 3 con documentos en ámbar."""
+    """3 no aptos (ITV caducada, seguro caducado e inmovilizado por avería) y 3 en ámbar."""
     r = crear_empresa_demo(db, hoy=HOY)
 
-    assert len(r.no_aptos) == 2
+    assert len(r.no_aptos) == 3
     assert len(r.en_ambar) == 3
 
 
@@ -239,3 +241,24 @@ def test_reiniciar_recrea_la_demo_sin_tocar_otras_empresas(db: Session) -> None:
     assert db.get(Empresa, otra.id) is not None  # la otra empresa sigue intacta
     assert contar(db, Usuario, otra.id) == 1
     assert db.scalar(select(func.count()).select_from(Empresa).where(Empresa.nombre.like("%Demo%"))) == 1
+
+
+def test_reiniciar_borra_tambien_las_fotos_de_las_averias(api: TestClient, db: Session) -> None:
+    """Al borrar la empresa demo no deben quedar fotos huérfanas en el disco."""
+    crear_empresa_demo(db, hoy=HOY)
+    login = api.post("/auth/login", json={"email": email_demo("conductor"), "password": PASSWORD_DEMO}).json()
+    auth = {"Authorization": f"Bearer {login['access_token']}"}
+    vehiculo = api.get("/vehiculos", headers=auth).json()[0]
+    antes = set(get_settings().carpeta_adjuntos.glob("*"))
+    api.post(
+        "/averias",
+        data={"vehiculo_id": str(vehiculo["id"]), "descripcion": "Prueba con foto", "gravedad": "leve"},
+        files={"foto": ("f.png", b"\x89PNG\r\n\x1a\n" + bytes(16), "image/png")},
+        headers=auth,
+    )
+    (foto,) = set(get_settings().carpeta_adjuntos.glob("*")) - antes
+
+    crear_empresa_demo(db, hoy=HOY, reiniciar=True)
+
+    assert not foto.exists()
+

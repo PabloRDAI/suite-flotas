@@ -18,6 +18,9 @@ const EstadoSistema = lazy(() => import('./pantallas/EstadoSistema.tsx'))
 const Personal = lazy(() => import('./pantallas/Personal.tsx'))
 const FichaPersona = lazy(() => import('./pantallas/FichaPersona.tsx'))
 const Taller = lazy(() => import('./pantallas/Taller.tsx'))
+const Averias = lazy(() => import('./pantallas/Averias.tsx'))
+const ComunicarAveria = lazy(() => import('./pantallas/ComunicarAveria.tsx'))
+const Inicio = lazy(() => import('./pantallas/Inicio.tsx'))
 
 export default function App() {
   return (
@@ -33,17 +36,20 @@ export default function App() {
             </RequiereSesion>
           }
         >
+          <Route path="/" element={<Inicio />} />
           <Route path="/panel" element={<Panel />} />
           <Route path="/vehiculos" element={<Vehiculos />} />
           <Route path="/vehiculos/:id" element={<FichaVehiculo />} />
           <Route path="/personal" element={<Personal />} />
           <Route path="/personal/:id" element={<FichaPersona />} />
           <Route path="/taller" element={<Taller />} />
+          <Route path="/averias" element={<Averias />} />
+          <Route path="/averias/nueva" element={<ComunicarAveria />} />
           <Route path="/sistema" element={<EstadoSistema />} />
         </Route>
 
-        {/* Cualquier otra URL lleva al panel (o al login si no hay sesión). */}
-        <Route path="*" element={<Navigate to="/panel" replace />} />
+        {/* Cualquier otra URL lleva al inicio de cada rol (o al login si no hay sesión). */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
   )

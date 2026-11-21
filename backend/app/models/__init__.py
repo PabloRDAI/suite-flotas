@@ -5,6 +5,7 @@ y los tests los ven todos con un solo "import app.models".
 """
 
 from app.models.asignacion import Asignacion
+from app.models.averia import Averia
 from app.models.centro import Centro, TipoCentro
 from app.models.empresa import Empresa
 from app.models.lectura_km import LecturaKm
@@ -17,6 +18,7 @@ from app.models.vehiculo import Combustible, EstadoVehiculo, TipoVehiculo, Unida
 __all__ = [
     "AplicaA",
     "Asignacion",
+    "Averia",
     "Centro",
     "Combustible",
     "Empresa",
