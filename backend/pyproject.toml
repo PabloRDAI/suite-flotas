@@ -19,6 +19,7 @@ dependencies = [
 dev = [
     "pytest>=8.3",               # framework de tests
     "httpx>=0.28",               # cliente HTTP que usa el TestClient de FastAPI
+    "pytest-cov>=6.0",           # cobertura de tests (la spec pide ≥ 90 % en el motor de reglas)
 ]
 
 [build-system]
@@ -31,3 +32,12 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
+
+# Cobertura: pytest --cov  (mide app/). El motor de reglas se exige al 90 % en CI:
+#   coverage report --include="app/reglas/*" --fail-under=90
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true

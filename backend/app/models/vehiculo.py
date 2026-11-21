@@ -8,6 +8,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db import Base
 from app.models.comun import ConMarcasDeTiempo, DeEmpresa, enum_texto
 
+# El estado se define en el motor de reglas (Python puro), que es quien lo calcula.
+from app.reglas.estado_vehiculo import EstadoVehiculo
+
+__all__ = ["Combustible", "EstadoVehiculo", "TipoVehiculo", "UnidadCapacidad", "Vehiculo"]
+
 
 class UnidadCapacidad(StrEnum):
     PLAZAS = "plazas"  # viajeros (autobús, microbús)
@@ -45,13 +50,6 @@ class Combustible(StrEnum):
     GLP = "glp"  # gas licuado del petróleo
     HIDROGENO = "hidrogeno"
     OTRO = "otro"
-
-
-class EstadoVehiculo(StrEnum):
-    OPERATIVO = "operativo"
-    EN_TALLER = "en_taller"
-    INMOVILIZADO = "inmovilizado"
-    BAJA = "baja"
 
 
 class Vehiculo(DeEmpresa, ConMarcasDeTiempo, Base):
@@ -92,7 +90,7 @@ class Vehiculo(DeEmpresa, ConMarcasDeTiempo, Base):
     combustible: Mapped[Combustible] = mapped_column(enum_texto(Combustible, "combustible"))
     # FLO-05: pasará a ser el valor de la última lectura de km.
     km_actuales: Mapped[int] = mapped_column(default=0, server_default="0")
-    # FLO-03: el motor de reglas lo recalculará según averías y órdenes de trabajo.
+    # FLO-03: nunca se asigna a mano; lo calcula app/servicios/estado_vehiculo.py (regla 1).
     estado: Mapped[EstadoVehiculo] = mapped_column(
         enum_texto(EstadoVehiculo, "estado_vehiculo"), default=EstadoVehiculo.OPERATIVO
     )

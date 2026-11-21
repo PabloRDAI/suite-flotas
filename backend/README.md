@@ -13,7 +13,9 @@ backend/
 │   ├── seguridad.py   Hash de contraseñas (Argon2) y tokens de sesión (JWT)
 │   ├── deps.py        Dependencias: usuario actual (401) y control de roles (403)
 │   ├── schemas.py     Esquemas Pydantic: lo que entra y sale por la API
-│   ├── reglas/        Motor de reglas en Python puro (sin BD): km.py (FLO-05), vencimientos.py (FLO-06/07)
+│   ├── reglas/        Motor de reglas en Python puro (sin BD): estado_vehiculo.py (FLO-03),
+│   │                  km.py (FLO-05), vencimientos.py (FLO-06/07)
+│   ├── servicios/     Unen las reglas con la BD (p. ej. actualizar_estado del vehículo)
 │   ├── routers/       Endpoints agrupados por área (auth, vehiculos, lecturas_km…)
 │   ├── scripts/       Comandos de línea (crear_admin)
 │   └── models/        Modelos (tablas): empresa, centro, usuario, tipo_vehiculo, vehiculo
@@ -58,7 +60,9 @@ uvicorn app.main:app --reload
 ## Tests
 
 ```powershell
-pytest
+pytest                       # todos los tests
+pytest --cov                 # con informe de cobertura (líneas sin probar en "Missing")
+coverage report --include="app/reglas/*" --fail-under=90   # el motor debe estar ≥ 90 % (CI lo exige)
 ```
 
 Los tests necesitan PostgreSQL en marcha, pero **nunca usan tu base de datos de desarrollo**:
@@ -152,3 +156,9 @@ del tipo (un documento que caduca hoy es ámbar) y verde en otro caso. Al renova
 vencimiento nuevo: de cada tipo solo cuenta el que caduca más tarde (el vigente). Un vehículo
 es apto para salir si está activo, operativo y sin documentos vigentes caducados de tipos que
 bloquean la salida. Reglas en `app/reglas/vencimientos.py`.
+
+**Estado del vehículo (FLO-03, regla 1):** de baja si está inactivo; en taller si tiene una OT
+abierta que inmoviliza; inmovilizado si tiene una avería "inmoviliza" sin OT abierta; si no,
+operativo. El estado nunca se asigna a mano: lo calcula `app/reglas/estado_vehiculo.py` y lo
+guarda `app/servicios/estado_vehiculo.py::actualizar_estado()`, que hay que llamar tras cualquier
+cambio que pueda alterarlo (baja, y en el futuro OT y averías).

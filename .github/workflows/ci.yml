@@ -61,8 +61,11 @@ jobs:
       - name: Comprobar que no falta ninguna migración (modelos = BD)
         run: alembic check
 
-      - name: Ejecutar tests
-        run: pytest
+      - name: Ejecutar tests (con cobertura)
+        run: pytest --cov
+
+      - name: Cobertura del motor de reglas ≥ 90 % (métrica de la spec)
+        run: coverage report --include="app/reglas/*" --fail-under=90
 
   frontend:
     name: Frontend (lint y build)

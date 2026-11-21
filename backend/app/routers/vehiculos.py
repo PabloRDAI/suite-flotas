@@ -13,8 +13,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.deps import Db, GestionFlota, UsuarioActual
-from app.models import Centro, EstadoVehiculo, LecturaKm, TipoVehiculo, Usuario, Vehiculo
+from app.models import Centro, LecturaKm, TipoVehiculo, Usuario, Vehiculo
 from app.schemas import VehiculoCrear, VehiculoEditar, VehiculoSalida
+from app.servicios.estado_vehiculo import actualizar_estado
 
 router = APIRouter(prefix="/vehiculos", tags=["vehículos"])
 
@@ -173,6 +174,6 @@ def dar_de_baja_vehiculo(vehiculo_id: int, usuario: GestionFlota, db: Db) -> Res
     """
     vehiculo = vehiculo_de_mi_empresa(db, usuario, vehiculo_id, solo_activos=True)
     vehiculo.activo = False
-    vehiculo.estado = EstadoVehiculo.BAJA
+    actualizar_estado(db, vehiculo)  # regla 1: inactivo -> "de baja"
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
