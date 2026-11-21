@@ -60,9 +60,10 @@ uvicorn app.main:app --reload
 pytest
 ```
 
-Los tests que usan la base de datos necesitan PostgreSQL en marcha y las migraciones
-aplicadas (`alembic upgrade head`). Cada test trabaja dentro de una transacción que se
-deshace al terminar (fixture `db` en `tests/conftest.py`), así que no deja datos.
+Los tests necesitan PostgreSQL en marcha, pero **nunca usan tu base de datos de desarrollo**:
+`tests/conftest.py` cambia la conexión a una base de datos aparte (`suite_flotas_test`, o la de
+`TEST_DATABASE_URL` si la defines), la crea si no existe y le aplica las migraciones. Además,
+cada test trabaja dentro de una transacción que se deshace al terminar (fixture `db`).
 
 ## Reglas que hace cumplir la base de datos
 
@@ -118,5 +119,15 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | GET | `/salud` | público | 200 si la API y la BD funcionan; 503 si la BD no responde |
 | POST | `/auth/login` | público | Email + contraseña → token de sesión |
 | GET | `/auth/yo` | todos | Datos del usuario conectado |
-| GET | `/vehiculos` | todos | Vehículos activos de la empresa del usuario |
+| GET | `/centros` | todos | Centros activos de la empresa |
+| POST | `/centros` | admin | Crear un centro (409 si el nombre ya existe) |
+| GET | `/tipos-vehiculo` | todos | Tipos de vehículo activos de la empresa |
+| POST | `/tipos-vehiculo` | admin | Crear un tipo de vehículo (409 si el nombre ya existe) |
+| GET | `/vehiculos` | todos | Vehículos de la empresa; filtros `centro_id`, `tipo_id`, `incluir_bajas` |
+| POST | `/vehiculos` | admin, tráfico | Alta (409 si la matrícula ya existe en la empresa) |
+| GET | `/vehiculos/{id}` | todos | Ficha del vehículo (también si está dado de baja) |
+| PATCH | `/vehiculos/{id}` | admin, tráfico | Edición parcial (no estado, km ni activo) |
 | DELETE | `/vehiculos/{id}` | admin, tráfico | Baja lógica del vehículo |
+
+La matrícula se normaliza al guardar (`"1234 abc"`, `"1234-ABC"` → `"1234ABC"`), así que la regla
+de unicidad no se puede saltar escribiéndola de otra forma. Una matrícula dada de baja sigue ocupada.

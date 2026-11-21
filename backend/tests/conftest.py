@@ -2,16 +2,60 @@
 
 Una "fixture" es algo que el test necesita preparado: el test la pide poniendo
 su nombre como parámetro y pytest se la entrega.
+
+BASE DE DATOS DE TESTS: los tests NUNCA usan la base de datos de desarrollo.
+Antes de cargar la aplicación, este archivo cambia DATABASE_URL a una base de
+datos aparte (la misma con el sufijo "_test", o TEST_DATABASE_URL si existe),
+la crea si no existe y le aplica las migraciones.
 """
 
+import os
 from collections.abc import Iterator
+from pathlib import Path
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, make_url, text
 
-from app.db import engine, get_db
-from app.main import app
+from app.config import Settings, get_settings
+
+# --- 1. Elegir la base de datos de tests (ANTES de importar app.db) ----------
+_url_desarrollo = make_url(Settings().database_url)  # type: ignore[call-arg]
+_url_tests = make_url(
+    os.environ.get("TEST_DATABASE_URL") or _url_desarrollo.set(database=f"{_url_desarrollo.database}_test")
+)
+if _url_tests.database == _url_desarrollo.database:
+    raise RuntimeError("La base de datos de tests no puede ser la de desarrollo")
+
+os.environ["DATABASE_URL"] = _url_tests.render_as_string(hide_password=False)
+get_settings.cache_clear()  # para que la aplicación lea la nueva DATABASE_URL
+
+
+def _preparar_bd_de_tests() -> None:
+    """Crea la base de datos de tests si no existe y le aplica las migraciones."""
+    # CREATE DATABASE no puede ejecutarse dentro de una transacción: AUTOCOMMIT.
+    servidor = create_engine(_url_tests.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    with servidor.connect() as conexion:
+        existe = conexion.scalar(
+            text("SELECT 1 FROM pg_database WHERE datname = :nombre"), {"nombre": _url_tests.database}
+        )
+        if not existe:
+            conexion.execute(text(f'CREATE DATABASE "{_url_tests.database}"'))
+    servidor.dispose()
+
+    from alembic import command
+    from alembic.config import Config
+
+    command.upgrade(Config(str(Path(__file__).resolve().parents[1] / "alembic.ini")), "head")
+
+
+_preparar_bd_de_tests()
+
+# --- 2. Ahora sí, cargar la aplicación (ya apunta a la BD de tests) -----------
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
+
+from app.db import engine, get_db  # noqa: E402
+from app.main import app  # noqa: E402
 
 
 @pytest.fixture

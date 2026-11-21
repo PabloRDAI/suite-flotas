@@ -72,3 +72,10 @@ def requiere_roles(*roles: RolUsuario) -> Callable[[Usuario], Usuario]:
         return usuario
 
     return comprobar_rol
+
+
+# Permisos con nombre, para que cada endpoint se lea fácil:
+# - SoloAdmin: configuración de la empresa (centros, tipos de vehículo…).
+# - GestionFlota: alta, edición y baja de vehículos (gerente y jefe de tráfico).
+SoloAdmin = Annotated[Usuario, Depends(requiere_roles(RolUsuario.ADMIN))]
+GestionFlota = Annotated[Usuario, Depends(requiere_roles(RolUsuario.ADMIN, RolUsuario.TRAFICO))]
