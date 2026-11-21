@@ -1,27 +1,42 @@
 # Frontend
 
-Aplicación web con **React + TypeScript** y **Vite**.
+Aplicación web con **React + TypeScript** y **Vite**, componentes de **Mantine**, navegación con
+**React Router** y datos con **TanStack Query** (decisión en
+[`docs/adr/0001`](../docs/adr/0001-libreria-de-componentes-frontend.md)).
 
 ## Estructura
 
 ```
-frontend/
-├── public/            Archivos que se sirven tal cual (favicon)
-├── src/
-│   ├── main.tsx       Punto de entrada: monta <App /> en index.html
-│   ├── App.tsx        Pantalla principal (estado del sistema)
-│   ├── api.ts         Llamadas a la API del backend
-│   ├── App.css        Estilos de la pantalla
-│   └── index.css      Estilos globales y colores (modo claro/oscuro)
-├── index.html         Única página HTML; React pinta dentro de <div id="root">
-├── vite.config.ts     Configuración de Vite (incluye el proxy /api -> backend)
-└── package.json       Dependencias y scripts
+frontend/src/
+├── main.tsx            Arranque: proveedores (Mantine, TanStack Query, Router, sesión)
+├── App.tsx             Rutas: qué pantalla corresponde a cada URL (carga diferida)
+├── api/
+│   ├── cliente.ts      Cliente HTTP: token, errores (ErrorApi) y sesión caducada (401)
+│   ├── consultas.ts    Hooks de datos (useVehiculos, useVehiculo, useRegistrarLectura…)
+│   ├── tipos.ts        Tipos de lo que devuelve la API (reflejo de backend/app/schemas.py)
+│   └── salud.ts        Comprobación pública de /salud
+├── auth/
+│   ├── contexto.ts     Contexto de sesión y hook useSesion()
+│   └── sesion.tsx      ProveedorSesion (login/logout) y RequiereSesion (rutas protegidas)
+├── componentes/        Layout (cabecera + menú), indicadores (semáforo, estado), carga/error
+├── pantallas/          Login, Vehiculos (listado), FichaVehiculo, EstadoSistema
+└── util/formato.ts     Fechas, km y números en español
 ```
+
+## Pantallas
+
+| URL | Pantalla |
+|---|---|
+| `/login` | Inicio de sesión |
+| `/vehiculos` | Listado con búsqueda y filtros por centro, tipo, estado e incluir bajas |
+| `/vehiculos/:id` | Ficha: aptitud para salir, pestañas de datos, documentación (semáforo) y km (con formulario de lectura) |
+| `/sistema` | Estado de la API y la base de datos |
 
 ## Puesta en marcha
 
 Requisitos: Node.js 20+ y el backend arrancado en http://127.0.0.1:8000
-(ver [`backend/README.md`](../backend/README.md)).
+(ver [`backend/README.md`](../backend/README.md)). Para tener datos, crea la empresa demo
+(`python -m app.scripts.demo` en `backend/`) y entra con `trafico@demo.example.com` / `demostracion`.
 
 ```powershell
 cd frontend
@@ -40,6 +55,13 @@ npm run dev        # arranca en http://localhost:5173
 
 ## Cómo habla con el backend
 
-El frontend llama a rutas que empiezan por `/api` (p. ej. `/api/salud`). En desarrollo,
-el proxy de Vite las reenvía a FastAPI quitando el prefijo (`/api/salud` → `http://127.0.0.1:8000/salud`).
-Así navegador y API comparten origen y no hace falta configurar CORS.
+El frontend llama a rutas que empiezan por `/api` (p. ej. `/api/vehiculos`). En desarrollo,
+el proxy de Vite las reenvía a FastAPI quitando el prefijo. El token de sesión se guarda en
+`localStorage` y se envía en la cabecera `Authorization: Bearer …`; si la API responde 401,
+la sesión se cierra y se vuelve al login.
+
+## Accesibilidad y móvil
+
+- Los estados y semáforos llevan siempre **icono y texto**, no solo color.
+- En pantallas estrechas el menú se recoge (botón ☰) y las tablas se desplazan en horizontal.
+- El modo oscuro sigue la preferencia del sistema operativo.
