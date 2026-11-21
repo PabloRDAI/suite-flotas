@@ -1,0 +1,30 @@
+[project]
+name = "suite-flotas-backend"
+version = "0.1.0"
+description = "API REST de Suite Flotas: flota, personal y mantenimiento"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",            # framework web para la API
+    "uvicorn[standard]>=0.32",   # servidor que ejecuta la app FastAPI
+    "sqlalchemy>=2.0",           # ORM: trabajar con la BD usando clases Python
+    "alembic>=1.14",             # migraciones: cambios versionados del esquema de la BD
+    "psycopg[binary]>=3.2",      # driver: cómo Python habla con PostgreSQL
+    "pydantic-settings>=2.6",    # leer la configuración (.env) con validación
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",               # framework de tests
+    "httpx>=0.28",               # cliente HTTP que usa el TestClient de FastAPI
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"

@@ -48,7 +48,8 @@ docker compose up -d
 docker compose ps        # el servicio "db" debe aparecer como "healthy"
 ```
 
-Las instrucciones del backend y del frontend se añadirán en las fases siguientes.
+Después, sigue las instrucciones de [`backend/README.md`](backend/README.md) para arrancar la API
+(http://127.0.0.1:8000/salud). Las del frontend se añadirán más adelante.
 
 ## Plan de entrega
 
