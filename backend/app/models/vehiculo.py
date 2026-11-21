@@ -60,6 +60,8 @@ class Vehiculo(DeEmpresa, ConMarcasDeTiempo, Base):
         # FLO-01: la matrícula es única dentro de la empresa
         # (otra empresa sí puede tener la misma matrícula en su sistema).
         UniqueConstraint("empresa_id", "matricula"),
+        # Para las FK compuestas desde otras tablas (lecturas de km, averías…).
+        UniqueConstraint("empresa_id", "id"),
         # GEN-01 reforzado en la BD: el centro y el tipo deben ser de la MISMA
         # empresa que el vehículo. Con una FK simple (centro_id -> centro.id)
         # se podría asignar por error un centro de otra empresa.

@@ -154,6 +154,23 @@ class VehiculoEditar(EntradaEstricta):
         return self
 
 
+class LecturaKmCrear(EntradaEstricta):
+    """Nueva lectura de km (FLO-05). Sin fecha, se usa la de hoy."""
+
+    km: Annotated[int, Field(ge=0, le=10_000_000)]
+    fecha: date | None = None
+
+
+class LecturaKmSalida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    vehiculo_id: int
+    fecha: date
+    km: int
+    registrada_por_id: int | None
+
+
 class VehiculoSalida(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

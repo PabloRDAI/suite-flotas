@@ -13,7 +13,8 @@ backend/
 │   ├── seguridad.py   Hash de contraseñas (Argon2) y tokens de sesión (JWT)
 │   ├── deps.py        Dependencias: usuario actual (401) y control de roles (403)
 │   ├── schemas.py     Esquemas Pydantic: lo que entra y sale por la API
-│   ├── routers/       Endpoints agrupados por área (auth, vehiculos…)
+│   ├── reglas/        Motor de reglas en Python puro (sin BD): p. ej. km.py (FLO-05)
+│   ├── routers/       Endpoints agrupados por área (auth, vehiculos, lecturas_km…)
 │   ├── scripts/       Comandos de línea (crear_admin)
 │   └── models/        Modelos (tablas): empresa, centro, usuario, tipo_vehiculo, vehiculo
 │       └── comun.py   Mixins reutilizables (empresa_id, fechas) y columnas de tipo enum
@@ -128,6 +129,14 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | GET | `/vehiculos/{id}` | todos | Ficha del vehículo (también si está dado de baja) |
 | PATCH | `/vehiculos/{id}` | admin, tráfico | Edición parcial (no estado, km ni activo) |
 | DELETE | `/vehiculos/{id}` | admin, tráfico | Baja lógica del vehículo |
+| GET | `/vehiculos/{id}/km` | todos | Historial de lecturas de km (de la más reciente a la más antigua) |
+| POST | `/vehiculos/{id}/km` | todos | Registrar una lectura `{"km": …, "fecha": opcional}` |
+| DELETE | `/vehiculos/{id}/km/{lectura_id}` | admin, tráfico | Borrar una lectura errónea (no la única) |
 
 La matrícula se normaliza al guardar (`"1234 abc"`, `"1234-ABC"` → `"1234ABC"`), así que la regla
 de unicidad no se puede saltar escribiéndola de otra forma. Una matrícula dada de baja sigue ocupada.
+
+**Lecturas de km (FLO-05):** una lectura debe encajar entre sus vecinas en el tiempo
+(≥ la anterior y ≤ la posterior, si es de una fecha pasada) y no puede ser de una fecha futura.
+`km_actuales` es siempre el de la última lectura; el alta del vehículo crea la lectura inicial.
+La regla vive en `app/reglas/km.py` y se prueba sin base de datos (`tests/test_reglas_km.py`).

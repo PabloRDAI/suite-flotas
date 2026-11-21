@@ -6,12 +6,14 @@ Reglas comunes a todos los endpoints:
 - Alta, edición y baja: solo admin y tráfico (GestionFlota). Consulta: cualquier rol.
 """
 
+from datetime import date
+
 from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.deps import Db, GestionFlota, UsuarioActual
-from app.models import Centro, EstadoVehiculo, TipoVehiculo, Usuario, Vehiculo
+from app.models import Centro, EstadoVehiculo, LecturaKm, TipoVehiculo, Usuario, Vehiculo
 from app.schemas import VehiculoCrear, VehiculoEditar, VehiculoSalida
 
 router = APIRouter(prefix="/vehiculos", tags=["vehículos"])
@@ -20,11 +22,19 @@ router = APIRouter(prefix="/vehiculos", tags=["vehículos"])
 # --- Funciones auxiliares ----------------------------------------------------
 
 
-def _vehiculo_de_mi_empresa(db: Db, usuario: Usuario, vehiculo_id: int, solo_activos: bool) -> Vehiculo:
-    """Devuelve el vehículo si es de la empresa del usuario; si no, 404."""
-    vehiculo = db.scalar(
-        select(Vehiculo).where(Vehiculo.id == vehiculo_id, Vehiculo.empresa_id == usuario.empresa_id)
-    )
+def vehiculo_de_mi_empresa(
+    db: Db, usuario: Usuario, vehiculo_id: int, solo_activos: bool, bloquear: bool = False
+) -> Vehiculo:
+    """Devuelve el vehículo si es de la empresa del usuario; si no, 404.
+
+    bloquear=True hace SELECT ... FOR UPDATE: nadie más puede modificar este
+    vehículo hasta que termine la transacción. Evita que dos peticiones
+    simultáneas validen a la vez con datos que la otra está cambiando.
+    """
+    consulta = select(Vehiculo).where(Vehiculo.id == vehiculo_id, Vehiculo.empresa_id == usuario.empresa_id)
+    if bloquear:
+        consulta = consulta.with_for_update()
+    vehiculo = db.scalar(consulta)
     if vehiculo is None or (solo_activos and not vehiculo.activo):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Vehículo no encontrado")
     return vehiculo
@@ -62,11 +72,14 @@ def _comprobar_matricula_libre(db: Db, usuario: Usuario, matricula: str, excepto
         raise HTTPException(status.HTTP_409_CONFLICT, detalle)
 
 
-def _guardar(db: Db) -> None:
-    """Confirma los cambios. Si la BD detecta un duplicado que se coló (dos altas
-    simultáneas con la misma matrícula), responde 409 en vez de un error 500."""
+def _guardar(db: Db, solo_flush: bool = False) -> None:
+    """Envía los cambios a la BD (y los confirma, salvo solo_flush=True).
+
+    Si la BD detecta un duplicado que se coló (dos altas simultáneas con la
+    misma matrícula), responde 409 en vez de un error 500.
+    """
     try:
-        db.commit()
+        db.flush() if solo_flush else db.commit()
     except IntegrityError as error:
         db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un vehículo con esa matrícula") from error
@@ -102,6 +115,9 @@ def listar_vehiculos(
 def crear_vehiculo(datos: VehiculoCrear, usuario: GestionFlota, db: Db) -> VehiculoSalida:
     """Alta de vehículo en la empresa del usuario. Empieza como "operativo".
 
+    Se crea también su lectura de km inicial (FLO-05): así los km actuales
+    salen siempre de una lectura, también los del alta.
+
     - 409 si la matrícula ya existe en la empresa.
     - 422 si los datos no son válidos o el centro/tipo no son de la empresa.
     """
@@ -110,20 +126,31 @@ def crear_vehiculo(datos: VehiculoCrear, usuario: GestionFlota, db: Db) -> Vehic
 
     vehiculo = Vehiculo(empresa_id=usuario.empresa_id, **datos.model_dump())
     db.add(vehiculo)
-    _guardar(db)
+    _guardar(db, solo_flush=True)  # INSERT ya, para conocer vehiculo.id
+
+    db.add(
+        LecturaKm(
+            empresa_id=usuario.empresa_id,
+            vehiculo_id=vehiculo.id,
+            fecha=date.today(),
+            km=vehiculo.km_actuales,
+            registrada_por_id=usuario.id,
+        )
+    )
+    db.commit()
     return VehiculoSalida.model_validate(vehiculo)
 
 
 @router.get("/{vehiculo_id}")
 def ver_vehiculo(vehiculo_id: int, usuario: UsuarioActual, db: Db) -> VehiculoSalida:
     """Ficha de un vehículo (también si está dado de baja, para consultar su historial)."""
-    return VehiculoSalida.model_validate(_vehiculo_de_mi_empresa(db, usuario, vehiculo_id, solo_activos=False))
+    return VehiculoSalida.model_validate(vehiculo_de_mi_empresa(db, usuario, vehiculo_id, solo_activos=False))
 
 
 @router.patch("/{vehiculo_id}")
 def editar_vehiculo(vehiculo_id: int, datos: VehiculoEditar, usuario: GestionFlota, db: Db) -> VehiculoSalida:
     """Edición parcial: solo cambia los campos enviados. Un vehículo dado de baja no se edita (404)."""
-    vehiculo = _vehiculo_de_mi_empresa(db, usuario, vehiculo_id, solo_activos=True)
+    vehiculo = vehiculo_de_mi_empresa(db, usuario, vehiculo_id, solo_activos=True)
     # exclude_unset: solo los campos que el cliente envió (no los que quedan a None por defecto).
     cambios = datos.model_dump(exclude_unset=True)
 
@@ -144,7 +171,7 @@ def dar_de_baja_vehiculo(vehiculo_id: int, usuario: GestionFlota, db: Db) -> Res
     - 403 si el rol no puede gestionar la flota (p. ej. un conductor).
     - 404 si no existe, es de otra empresa o ya estaba dado de baja.
     """
-    vehiculo = _vehiculo_de_mi_empresa(db, usuario, vehiculo_id, solo_activos=True)
+    vehiculo = vehiculo_de_mi_empresa(db, usuario, vehiculo_id, solo_activos=True)
     vehiculo.activo = False
     vehiculo.estado = EstadoVehiculo.BAJA
     db.commit()
