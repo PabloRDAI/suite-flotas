@@ -8,15 +8,15 @@ Coherencia ("totales que coinciden con el listado filtrado"): contadores,
 tabla y alertas se calculan sobre la misma lista de vehículos.
 """
 
-from collections import defaultdict
 from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import EstadoVehiculo, TipoVencimiento, Vehiculo, Vencimiento
-from app.reglas.vencimientos import Documento, Semaforo, aptitud_para_salir, dias_restantes, semaforo, vigentes
+from app.models import AplicaA, EstadoVehiculo, Vehiculo
+from app.reglas.vencimientos import Semaforo, aptitud_para_salir, dias_restantes, semaforo, vigentes
 from app.schemas import AlertaPanel, ContadoresPanel, PanelSalida, VehiculoPanel
+from app.servicios.vencimientos import documentos_en_bloque
 
 _ORDEN_URGENCIA = {Semaforo.ROJO: 0, Semaforo.AMBAR: 1, Semaforo.VERDE: 2}
 
@@ -44,15 +44,7 @@ def calcular_panel(
     vehiculos = list(db.scalars(consulta.order_by(Vehiculo.matricula)))
 
     # Consulta 2: TODOS los vencimientos de esos vehículos, con su tipo, de una vez.
-    documentos: dict[int, list[Documento]] = defaultdict(list)
-    if vehiculos:
-        filas = db.execute(
-            select(Vencimiento.vehiculo_id, Vencimiento.fecha_caducidad, TipoVencimiento)
-            .join(TipoVencimiento, TipoVencimiento.id == Vencimiento.tipo_id)
-            .where(Vencimiento.empresa_id == empresa_id, Vencimiento.vehiculo_id.in_([v.id for v in vehiculos]))
-        )
-        for vehiculo_id, caduca, t in filas.tuples():
-            documentos[vehiculo_id].append(Documento(t.id, t.nombre, caduca, t.dias_aviso, t.bloquea_salida))
+    documentos = documentos_en_bloque(db, empresa_id, AplicaA.VEHICULO, (v.id for v in vehiculos))
 
     # El resto, en memoria con las reglas del motor.
     filas_panel: list[VehiculoPanel] = []

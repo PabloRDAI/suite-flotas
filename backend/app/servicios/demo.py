@@ -9,8 +9,8 @@ Todo es inventado: nombre de empresa, marcas, matrículas y emails
 (@demo.example.com, dominio reservado para ejemplos). Las fechas son relativas a
 "hoy", así que siempre hay vencimientos en rojo y en ámbar para enseñar.
 
-Pendiente de ampliar cuando existan sus tablas: 30 personas (fase de personal)
-y 6 meses de historial de mantenimiento (fase de mantenimiento).
+Incluye 30 personas con su documentación (PER-01, PER-02). Pendiente de ampliar
+cuando existan sus tablas: 6 meses de historial de mantenimiento.
 """
 
 import random
@@ -26,6 +26,8 @@ from app.models import (
     Combustible,
     Empresa,
     LecturaKm,
+    Persona,
+    Puesto,
     RolUsuario,
     TipoCentro,
     TipoVehiculo,
@@ -110,6 +112,34 @@ USUARIOS = [
     (RolUsuario.CONDUCTOR, "conductor", "Conductor (demo)"),
 ]
 
+# Personal: (puesto, cuántos). En total, 30: lo que pide GEN-04.
+REPARTO_PERSONAL = [(Puesto.CONDUCTOR, 20), (Puesto.MECANICO, 5), (Puesto.TRAFICO, 3), (Puesto.OTRO, 2)]
+# Nombres y apellidos comunes, combinados al azar: personas inventadas. (Sin el nombre
+# de quien firma el proyecto, para no confundir a una persona inventada con alguien real.)
+NOMBRES = ["Lucía", "Hugo", "Marta", "Óscar", "Sara", "Javier", "Elena", "Daniel", "Carmen", "Álvaro",
+           "Nuria", "Sergio", "Irene", "Raúl", "Paula", "Adrián", "Laura", "Diego", "Rocío", "Iván"]
+APELLIDOS = ["García", "Martín", "López", "Sánchez", "Romero", "Navarro", "Torres", "Ruiz", "Gil", "Molina",
+             "Ortega", "Delgado", "Castro", "Ortiz", "Rubio", "Marín", "Iglesias", "Medina", "Garrido", "Cano"]
+# Documentos por puesto (nombres de TIPOS_VENC_PERSONA).
+DOCUMENTOS_POR_PUESTO = {
+    Puesto.CONDUCTOR: ["Permiso de conducir", "CAP", "Tarjeta de conductor", "Reconocimiento médico"],
+    Puesto.MECANICO: ["Reconocimiento médico"],
+}
+CONDUCTORES_CON_ADR = 3  # los primeros conductores también llevan mercancías peligrosas
+# Casos especiales de personal: nº de persona -> (documento, días hasta caducar)
+CASOS_ESPECIALES_PERSONAL = {
+    0: ("CAP", -10),  # rojo
+    1: ("Tarjeta de conductor", 12),  # ámbar (aviso 30)
+    2: ("Permiso de conducir", 40),  # ámbar (aviso 60)
+}
+# Qué persona corresponde a cada usuario demo: (rol del usuario, puesto, nº de esa persona dentro del puesto)
+ENLACE_USUARIOS = {
+    RolUsuario.ADMIN: (Puesto.OTRO, 0),
+    RolUsuario.TRAFICO: (Puesto.TRAFICO, 0),
+    RolUsuario.TALLER: (Puesto.MECANICO, 0),
+    RolUsuario.CONDUCTOR: (Puesto.CONDUCTOR, 3),  # un conductor con la documentación en regla
+}
+
 # Casos especiales para que el panel tenga de todo: nº de vehículo -> (documento, días hasta caducar)
 CASOS_ESPECIALES = {
     0: ("ITV", -12),  # rojo: NO apto
@@ -162,14 +192,17 @@ def planificar_demo(hoy: date, semilla: int = SEMILLA) -> list[VehiculoPlan]:
                 tipo=tipo,
                 marca=marca,
                 modelo=modelo,
-                anio=rng.randint(2012, hoy.year),
+                anio=rng.randint(2012, hoy.year - 1),
                 capacidad=capacidad,
                 combustible=combustible,
                 centro=len(plan) % len(CENTROS),
             )
 
             # Lecturas de km semanales durante ~6 meses, siempre crecientes.
-            km = rng.randint(15_000, 450_000)
+            # Km iniciales coherentes con la antigüedad: días en servicio hasta el inicio
+            # del historial x km diarios de su tipo (con algo de variación).
+            dias_en_servicio = max((inicio - date(v.anio, 7, 1)).days, 30)
+            km = int(dias_en_servicio * km_por_dia[tipo] * rng.uniform(0.6, 1.0))
             fecha = inicio
             while fecha <= hoy:
                 v.lecturas.append((fecha, km))
@@ -192,6 +225,48 @@ def planificar_demo(hoy: date, semilla: int = SEMILLA) -> list[VehiculoPlan]:
     return plan
 
 
+@dataclass
+class PersonaPlan:
+    nombre: str
+    puesto: Puesto
+    centro: int  # índice en CENTROS
+    fecha_alta: date
+    vencimientos: list[tuple[str, date]] = field(default_factory=list)
+
+
+def planificar_personal(hoy: date, semilla: int = SEMILLA) -> list[PersonaPlan]:
+    """Genera las 30 personas con su documentación (siempre las mismas)."""
+    rng = random.Random(semilla + 1)  # semilla propia: no altera los vehículos
+    nombres: set[str] = set()
+    plan: list[PersonaPlan] = []
+    conductores = 0
+    for puesto, cantidad in REPARTO_PERSONAL:
+        for _ in range(cantidad):
+            while True:
+                nombre = f"{rng.choice(NOMBRES)} {rng.choice(APELLIDOS)} {rng.choice(APELLIDOS)}"
+                if nombre not in nombres:
+                    nombres.add(nombre)
+                    break
+            p = PersonaPlan(
+                nombre=nombre,
+                puesto=puesto,
+                centro=len(plan) % len(CENTROS),
+                fecha_alta=hoy - timedelta(days=rng.randint(60, 3650)),
+            )
+            documentos = list(DOCUMENTOS_POR_PUESTO.get(puesto, []))
+            if puesto == Puesto.CONDUCTOR:
+                if conductores < CONDUCTORES_CON_ADR:
+                    documentos.append("ADR")
+                conductores += 1
+            especial = CASOS_ESPECIALES_PERSONAL.get(len(plan))
+            for doc in documentos:
+                # Verde: más allá del mayor plazo de aviso (60 días), salvo los casos especiales.
+                dias = especial[1] if especial and especial[0] == doc else rng.randint(70, 1500)
+                p.vencimientos.append((doc, hoy + timedelta(days=dias)))
+            plan.append(p)
+    return plan
+
+
 # --- 2. Guardar en la base de datos ------------------------------------------
 
 
@@ -205,6 +280,9 @@ class ResumenDemo:
     no_aptos: list[str]  # matrículas de los vehículos que no pueden salir
     en_ambar: list[str]  # matrículas con algún documento a punto de caducar
     usuarios: list[str]  # emails para hacer login
+    personas: int = 0
+    personas_en_rojo: list[str] = field(default_factory=list)  # nombres con documentación caducada
+    personas_en_ambar: list[str] = field(default_factory=list)  # nombres con documentación a punto de caducar
 
 
 class DemoYaExiste(Exception):
@@ -222,7 +300,8 @@ def buscar_empresa_demo(db: Session) -> int | None:
 
 def borrar_empresa(db: Session, empresa_id: int) -> None:
     """Borra una empresa y TODOS sus datos, en orden (de las tablas hijas a la empresa)."""
-    for modelo in (Vencimiento, LecturaKm, Vehiculo, TipoVencimiento, TipoVehiculo, Centro, Usuario):
+    # Vencimiento antes que Vehiculo y Persona; Persona antes que Usuario (lo referencia).
+    for modelo in (Vencimiento, LecturaKm, Vehiculo, Persona, TipoVencimiento, TipoVehiculo, Centro, Usuario):
         db.execute(delete(modelo).where(modelo.empresa_id == empresa_id))
     db.execute(delete(Empresa).where(Empresa.id == empresa_id))
 
@@ -254,16 +333,16 @@ def crear_empresa_demo(
         n: TipoVencimiento(empresa_id=eid, nombre=n, dias_aviso=d, bloquea_salida=b, aplica_a=AplicaA.VEHICULO)
         for n, d, b in TIPOS_VENC_VEHICULO
     }
-    tipos_persona = [
-        TipoVencimiento(empresa_id=eid, nombre=n, dias_aviso=d, bloquea_salida=b, aplica_a=AplicaA.PERSONA)
+    tipos_persona = {
+        n: TipoVencimiento(empresa_id=eid, nombre=n, dias_aviso=d, bloquea_salida=b, aplica_a=AplicaA.PERSONA)
         for n, d, b in TIPOS_VENC_PERSONA
-    ]
+    }
     hash_demo = hash_password(password)  # un solo hash para todos: Argon2 es lento a propósito
     usuarios = [
         Usuario(empresa_id=eid, email=email_demo(alias), nombre=nombre, hash_password=hash_demo, rol=rol)
         for rol, alias, nombre in USUARIOS
     ]
-    db.add_all([*centros, *tipos_vehiculo.values(), *tipos_venc.values(), *tipos_persona, *usuarios])
+    db.add_all([*centros, *tipos_vehiculo.values(), *tipos_venc.values(), *tipos_persona.values(), *usuarios])
     db.flush()
 
     no_aptos: list[str] = []
@@ -303,6 +382,40 @@ def crear_empresa_demo(
         if any(semaforo(d.fecha_caducidad, d.dias_aviso, hoy) == Semaforo.AMBAR for d in vigentes(docs)):
             en_ambar.append(p.matricula)
 
+    # Personal (PER-01) con su documentación (PER-02).
+    usuario_por_rol = {u.rol: u for u in usuarios}
+    # (puesto, nº dentro del puesto) -> rol del usuario que le corresponde.
+    rol_de_persona = {clave: rol for rol, clave in ENLACE_USUARIOS.items()}
+    personas_en_rojo: list[str] = []
+    personas_en_ambar: list[str] = []
+    plan_personal = planificar_personal(hoy)
+    vistos_por_puesto: dict[Puesto, int] = {}
+    for pp in plan_personal:
+        n_en_puesto = vistos_por_puesto.get(pp.puesto, 0)
+        vistos_por_puesto[pp.puesto] = n_en_puesto + 1
+        rol = rol_de_persona.get((pp.puesto, n_en_puesto))
+        usuario_enlazado = usuario_por_rol[rol] if rol else None
+        persona = Persona(
+            empresa_id=eid,
+            nombre=pp.nombre,
+            puesto=pp.puesto,
+            centro_id=centros[pp.centro].id,
+            fecha_alta=pp.fecha_alta,
+            usuario_id=usuario_enlazado.id if usuario_enlazado else None,
+        )
+        db.add(persona)
+        db.flush()
+        db.add_all(
+            Vencimiento(empresa_id=eid, persona_id=persona.id, tipo_id=tipos_persona[n].id, fecha_caducidad=f)
+            for n, f in pp.vencimientos
+        )
+        n_vencimientos += len(pp.vencimientos)
+        colores = {semaforo(f, tipos_persona[n].dias_aviso, hoy) for n, f in pp.vencimientos}
+        if Semaforo.ROJO in colores:
+            personas_en_rojo.append(pp.nombre)
+        elif Semaforo.AMBAR in colores:
+            personas_en_ambar.append(pp.nombre)
+
     db.flush()
     return ResumenDemo(
         empresa_id=eid,
@@ -313,4 +426,7 @@ def crear_empresa_demo(
         no_aptos=no_aptos,
         en_ambar=en_ambar,
         usuarios=[u.email for u in usuarios],
+        personas=len(plan_personal),
+        personas_en_rojo=personas_en_rojo,
+        personas_en_ambar=personas_en_ambar,
     )

@@ -18,7 +18,8 @@ backend/
 │   ├── servicios/     Unen las reglas con la BD (p. ej. actualizar_estado del vehículo)
 │   ├── routers/       Endpoints agrupados por área (auth, vehiculos, lecturas_km…)
 │   ├── scripts/       Comandos de línea (crear_admin)
-│   └── models/        Modelos (tablas): empresa, centro, usuario, tipo_vehiculo, vehiculo
+│   └── models/        Modelos (tablas): empresa, centro, usuario, vehículos, lecturas de km,
+│                      vencimientos y personas
 │       └── comun.py   Mixins reutilizables (empresa_id, fechas) y columnas de tipo enum
 ├── alembic/           Migraciones de la base de datos
 │   ├── env.py         Conecta Alembic con app.config y app.db.Base
@@ -102,12 +103,13 @@ python -m app.scripts.demo              # crea "Transportes Demo (ficticia)"
 python -m app.scripts.demo --reiniciar  # la borra y la vuelve a crear (solo la demo)
 ```
 
-Crea 2 centros, 5 tipos de vehículo, 25 vehículos con ~6 meses de lecturas de km semanales,
-tipos de vencimiento de vehículo y de persona, y vencimientos con casos en rojo (2 vehículos
-no aptos) y en ámbar. Usuarios `admin`, `trafico`, `taller` y `conductor` `@demo.example.com`
+Crea 2 centros, 5 tipos de vehículo, 25 vehículos con ~6 meses de lecturas de km semanales
+(km iniciales coherentes con la antigüedad), tipos de vencimiento de vehículo y de persona,
+vencimientos con casos en rojo (2 vehículos no aptos) y en ámbar, y 30 personas (20 conductores,
+5 mecánicos, 3 de tráfico y 2 de otros puestos) con su documentación, también con casos en rojo y ámbar. Usuarios `admin`, `trafico`, `taller` y `conductor` `@demo.example.com`
 con la contraseña `demostracion`. Todo es inventado; los datos son siempre los mismos (semilla
-fija) y las fechas se calculan desde el día en que se ejecuta. Personas e historial de
-mantenimiento se añadirán cuando existan sus tablas.
+fija) y las fechas se calculan desde el día en que se ejecuta. El historial de mantenimiento se
+añadirá cuando existan sus tablas.
 
 ## Autenticación y permisos
 
@@ -157,6 +159,13 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | POST | `/vehiculos/{id}/vencimientos` | admin, tráfico | Registrar un documento o su renovación |
 | DELETE | `/vehiculos/{id}/vencimientos/{venc_id}` | admin, tráfico | Borrar un vencimiento registrado por error |
 | GET | `/vehiculos/{id}/aptitud` | todos | ¿Apto para salir? Con motivos y el peor semáforo |
+| GET | `/personas` | todos | Personal con el semáforo de su documentación; filtros `centro_id`, `puesto`, `incluir_bajas` |
+| POST | `/personas` | admin, tráfico | Alta (solo datos mínimos: sin DNI ni datos bancarios) |
+| GET | `/personas/{id}` | todos | Ficha de la persona (también si está de baja) |
+| PATCH | `/personas/{id}` | admin, tráfico | Edición parcial; `usuario_id` enlaza o desenlaza su usuario |
+| DELETE | `/personas/{id}` | admin, tráfico | Baja lógica con fecha de baja |
+| GET/POST | `/personas/{id}/vencimientos` | todos / admin, tráfico | Documentos de la persona (permiso, CAP…) con semáforo |
+| DELETE | `/personas/{id}/vencimientos/{venc_id}` | admin, tráfico | Borrar un vencimiento registrado por error |
 
 La matrícula se normaliza al guardar (`"1234 abc"`, `"1234-ABC"` → `"1234ABC"`), así que la regla
 de unicidad no se puede saltar escribiéndola de otra forma. Una matrícula dada de baja sigue ocupada.
@@ -170,7 +179,9 @@ La regla vive en `app/reglas/km.py` y se prueba sin base de datos (`tests/test_r
 del tipo (un documento que caduca hoy es ámbar) y verde en otro caso. Al renovar se registra un
 vencimiento nuevo: de cada tipo solo cuenta el que caduca más tarde (el vigente). Un vehículo
 es apto para salir si está activo, operativo y sin documentos vigentes caducados de tipos que
-bloquean la salida. Reglas en `app/reglas/vencimientos.py`.
+bloquean la salida. Reglas en `app/reglas/vencimientos.py`. Los vencimientos de personas (PER-02)
+usan la misma tabla, el mismo servicio (`app/servicios/vencimientos.py`) y las mismas reglas; un
+`CHECK` garantiza que cada vencimiento es de un vehículo o de una persona, nunca de ambos.
 
 **Panel de flota (FLO-04):** `GET /panel` calcula contadores, tabla y alertas sobre la misma lista de
 vehículos activos (los totales coinciden con el listado filtrado) con solo dos consultas a la BD;

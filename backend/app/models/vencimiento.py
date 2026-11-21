@@ -1,4 +1,4 @@
-"""Tipos de vencimiento y vencimientos de documentación (FLO-06; PER-02 más adelante)."""
+"""Tipos de vencimiento y vencimientos de documentación de vehículos (FLO-06) y personas (PER-02)."""
 
 from datetime import date
 from enum import StrEnum
@@ -51,7 +51,9 @@ class Vencimiento(DeEmpresa, ConMarcasDeTiempo, Base):
 
     __tablename__ = "vencimiento"
     __table_args__ = (
-        # GEN-01: el tipo y el vehículo son de la misma empresa que el vencimiento.
+        # Cada vencimiento es de un vehículo (FLO-06) O de una persona (PER-02): exactamente uno.
+        CheckConstraint("num_nonnulls(vehiculo_id, persona_id) = 1", name="un_solo_titular"),
+        # GEN-01: el tipo, el vehículo y la persona son de la misma empresa que el vencimiento.
         ForeignKeyConstraint(
             ["empresa_id", "tipo_id"],
             ["tipo_vencimiento.empresa_id", "tipo_vencimiento.id"],
@@ -63,14 +65,23 @@ class Vencimiento(DeEmpresa, ConMarcasDeTiempo, Base):
             name="fk_vencimiento_vehiculo_misma_empresa",
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(
+            ["empresa_id", "persona_id"],
+            ["persona.empresa_id", "persona.id"],
+            name="fk_vencimiento_persona_misma_empresa",
+            ondelete="CASCADE",
+        ),
         Index("ix_vencimiento_vehiculo_id_tipo_id", "vehiculo_id", "tipo_id"),
+        Index("ix_vencimiento_persona_id_tipo_id", "persona_id", "tipo_id"),
         # Para buscar rápido "lo que caduca pronto" en toda la empresa (panel, FLO-04).
         Index("ix_vencimiento_empresa_id_fecha_caducidad", "empresa_id", "fecha_caducidad"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     tipo_id: Mapped[int]
-    vehiculo_id: Mapped[int]
+    # Titular: uno de los dos (lo garantiza el CHECK "un_solo_titular").
+    vehiculo_id: Mapped[int | None]
+    persona_id: Mapped[int | None]
     fecha_caducidad: Mapped[date]
     notas: Mapped[str | None] = mapped_column(Text)
     registrado_por_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id", ondelete="SET NULL"))

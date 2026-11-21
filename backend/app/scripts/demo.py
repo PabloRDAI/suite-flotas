@@ -38,6 +38,8 @@ def main() -> int:
     print(f"  {r.centros} centros, {r.vehiculos} vehículos, {r.lecturas_km} lecturas de km, {r.vencimientos} vencimientos")
     print(f"  No aptos para salir: {', '.join(r.no_aptos) or 'ninguno'}")
     print(f"  Con documentos en ámbar: {', '.join(r.en_ambar) or 'ninguno'}")
+    print(f"  {r.personas} personas; con documentación caducada: {', '.join(r.personas_en_rojo) or 'ninguna'}")
+    print(f"  Personas con documentación a punto de caducar: {', '.join(r.personas_en_ambar) or 'ninguna'}")
     print(f"Usuarios (contraseña: {args.password}):")
     for email in r.usuarios:
         print(f"  {email}")

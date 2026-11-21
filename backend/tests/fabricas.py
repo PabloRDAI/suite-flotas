@@ -3,6 +3,7 @@
 Cada test solo indica lo que le importa; el resto lo rellenan estas "fábricas".
 """
 
+from datetime import date
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -12,6 +13,8 @@ from app.models import (
     Centro,
     Combustible,
     Empresa,
+    Persona,
+    Puesto,
     RolUsuario,
     TipoVehiculo,
     TipoVencimiento,
@@ -83,6 +86,25 @@ def crear_tipo_vencimiento(
     db.add(tipo)
     db.flush()
     return tipo
+
+
+def crear_persona(
+    db: Session,
+    empresa: Empresa,
+    nombre: str = "Persona Ficticia",
+    puesto: Puesto = Puesto.CONDUCTOR,
+    centro: Centro | None = None,
+) -> Persona:
+    persona = Persona(
+        empresa_id=empresa.id,
+        nombre=nombre,
+        puesto=puesto,
+        centro_id=(centro or crear_centro(db, empresa, f"Centro de {nombre}")).id,
+        fecha_alta=date(2024, 1, 15),
+    )
+    db.add(persona)
+    db.flush()
+    return persona
 
 
 def cabeceras(usuario: Usuario) -> dict[str, str]:

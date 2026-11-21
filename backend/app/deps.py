@@ -79,3 +79,5 @@ def requiere_roles(*roles: RolUsuario) -> Callable[[Usuario], Usuario]:
 # - GestionFlota: alta, edición y baja de vehículos (gerente y jefe de tráfico).
 SoloAdmin = Annotated[Usuario, Depends(requiere_roles(RolUsuario.ADMIN))]
 GestionFlota = Annotated[Usuario, Depends(requiere_roles(RolUsuario.ADMIN, RolUsuario.TRAFICO))]
+# - GestionPersonal: alta, edición, baja y documentación del personal (gerente y jefe de tráfico).
+GestionPersonal = GestionFlota

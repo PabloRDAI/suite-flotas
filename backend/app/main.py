@@ -14,6 +14,7 @@ from app.routers import (
     centros,
     lecturas_km,
     panel,
+    personas,
     tipos_vehiculo,
     tipos_vencimiento,
     vehiculos,
@@ -30,6 +31,7 @@ app.include_router(tipos_vencimiento.router)
 app.include_router(vehiculos.router)
 app.include_router(lecturas_km.router)
 app.include_router(vencimientos.router)
+app.include_router(personas.router)
 
 
 @app.get("/salud", tags=["sistema"])

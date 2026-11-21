@@ -12,7 +12,7 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, StringConstraints, model_validator
 
-from app.models import AplicaA, Combustible, EstadoVehiculo, RolUsuario, TipoCentro, UnidadCapacidad
+from app.models import AplicaA, Combustible, EstadoVehiculo, Puesto, RolUsuario, TipoCentro, UnidadCapacidad
 from app.reglas.vencimientos import Semaforo
 
 # --- Tipos reutilizables -----------------------------------------------------
@@ -200,6 +200,51 @@ class AptitudSalida(BaseModel):
     apto: bool
     motivos: list[str]
     semaforo: Semaforo  # el peor de su documentación vigente
+
+
+# --- Personal (PER-01) -------------------------------------------------------
+# Privacidad (RGPD): solo estos campos. No hay DNI ni datos bancarios, y como las
+# entradas son estrictas (extra="forbid"), enviarlos se rechaza con 422.
+
+
+class PersonaCrear(EntradaEstricta):
+    nombre: Annotated[Texto, Field(max_length=150)]
+    puesto: Puesto
+    centro_id: int
+    fecha_alta: date
+    usuario_id: int | None = None
+
+
+class PersonaEditar(EntradaEstricta):
+    """Edición parcial. La baja va por DELETE; usuario_id=null desenlaza el usuario."""
+
+    nombre: Annotated[Texto, Field(max_length=150)] | None = None
+    puesto: Puesto | None = None
+    centro_id: int | None = None
+    fecha_alta: date | None = None
+    usuario_id: int | None = None
+
+    @model_validator(mode="after")
+    def no_vaciar_campos_obligatorios(self) -> "PersonaEditar":
+        vaciados = [c for c in self.model_fields_set if getattr(self, c) is None and c != "usuario_id"]
+        if vaciados:
+            raise ValueError(f"Estos campos no pueden quedar vacíos: {', '.join(sorted(vaciados))}")
+        return self
+
+
+class PersonaSalida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nombre: str
+    puesto: Puesto
+    centro_id: int
+    fecha_alta: date
+    activo: bool
+    fecha_baja: date | None
+    usuario_id: int | None
+    # PER-02: peor semáforo de su documentación vigente (mismas reglas que FLO-06).
+    semaforo: Semaforo = Semaforo.VERDE
 
 
 class VehiculoPanel(BaseModel):

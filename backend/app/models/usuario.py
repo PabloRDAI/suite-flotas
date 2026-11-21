@@ -2,7 +2,7 @@
 
 from enum import StrEnum
 
-from sqlalchemy import String, true
+from sqlalchemy import String, UniqueConstraint, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -18,6 +18,7 @@ class RolUsuario(StrEnum):
 
 class Usuario(DeEmpresa, ConMarcasDeTiempo, Base):
     __tablename__ = "usuario"
+    __table_args__ = (UniqueConstraint("empresa_id", "id"),)  # para la FK compuesta desde persona
 
     id: Mapped[int] = mapped_column(primary_key=True)
     # El email identifica al usuario al hacer login: único en toda la aplicación.

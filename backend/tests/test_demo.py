@@ -1,5 +1,6 @@
 """Tests de la empresa de demostración (GEN-04)."""
 
+from collections import Counter
 from datetime import date
 
 import pytest
@@ -7,14 +8,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Centro, Empresa, LecturaKm, RolUsuario, Usuario, Vehiculo
+from app.models import Centro, Empresa, LecturaKm, Persona, RolUsuario, Usuario, Vehiculo
 from app.reglas.km import Lectura, comprobar_lectura
 from app.servicios.demo import (
     PASSWORD_DEMO,
+    TIPOS_VEHICULO,
     DemoYaExiste,
     crear_empresa_demo,
     email_demo,
     planificar_demo,
+    planificar_personal,
 )
 from tests.fabricas import crear_empresa, crear_usuario
 
@@ -115,6 +118,50 @@ def test_se_puede_hacer_login_con_los_usuarios_demo(api: TestClient, db: Session
     for alias in ("admin", "trafico", "taller", "conductor"):
         respuesta = api.post("/auth/login", json={"email": email_demo(alias), "password": PASSWORD_DEMO})
         assert respuesta.status_code == 200, alias
+
+
+# --- Personal (PER-01, PER-02) -----------------------------------------------
+
+
+def test_el_plan_de_personal_tiene_30_personas_con_nombre_unico() -> None:
+    plan = planificar_personal(HOY)
+
+    assert len(plan) == 30
+    assert len({p.nombre for p in plan}) == 30
+    assert Counter(p.puesto for p in plan) == {"conductor": 20, "mecanico": 5, "trafico": 3, "otro": 2}
+
+
+def test_crea_las_30_personas_con_su_documentacion(db: Session) -> None:
+    r = crear_empresa_demo(db, hoy=HOY)
+
+    assert contar(db, Persona, r.empresa_id) == r.personas == 30
+    assert len(r.personas_en_rojo) == 1  # CAP caducado
+    assert len(r.personas_en_ambar) == 2
+
+
+def test_los_usuarios_demo_estan_enlazados_a_su_persona(db: Session) -> None:
+    r = crear_empresa_demo(db, hoy=HOY)
+
+    enlaces = db.execute(
+        select(Usuario.rol, Persona.puesto)
+        .join(Persona, Persona.usuario_id == Usuario.id)
+        .where(Usuario.empresa_id == r.empresa_id)
+    ).all()
+
+    assert dict(enlaces) == {"admin": "otro", "trafico": "trafico", "taller": "mecanico", "conductor": "conductor"}
+
+
+# --- Realismo de los datos ---------------------------------------------------
+
+
+def test_los_km_son_coherentes_con_la_antiguedad() -> None:
+    """Ningún vehículo puede tener más km de los que daría haber rodado a diario desde su año."""
+    km_por_dia = {nombre: km for nombre, _, km in TIPOS_VEHICULO}
+    for v in planificar_demo(HOY):
+        fecha_inicio, km_inicio = v.lecturas[0]
+        dias_en_servicio = (fecha_inicio - date(v.anio, 1, 1)).days
+        assert v.anio < HOY.year, f"{v.matricula}: no debería ser de este año"
+        assert km_inicio <= dias_en_servicio * km_por_dia[v.tipo], f"{v.matricula}: {km_inicio} km es demasiado"
 
 
 # --- Repetir la ejecución ----------------------------------------------------
