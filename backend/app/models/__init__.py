@@ -8,6 +8,7 @@ from app.models.asignacion import Asignacion
 from app.models.centro import Centro, TipoCentro
 from app.models.empresa import Empresa
 from app.models.lectura_km import LecturaKm
+from app.models.mantenimiento import EstadoPlan, PlanMantenimiento, TareaPlan
 from app.models.persona import Persona, Puesto
 from app.models.usuario import RolUsuario, Usuario
 from app.models.vencimiento import AplicaA, TipoVencimiento, Vencimiento
@@ -19,11 +20,14 @@ __all__ = [
     "Centro",
     "Combustible",
     "Empresa",
+    "EstadoPlan",
     "EstadoVehiculo",
     "LecturaKm",
     "Persona",
+    "PlanMantenimiento",
     "Puesto",
     "RolUsuario",
+    "TareaPlan",
     "TipoCentro",
     "TipoVehiculo",
     "TipoVencimiento",

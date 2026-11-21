@@ -41,6 +41,8 @@ def main() -> int:
     print(f"  {r.personas} personas; con documentación caducada: {', '.join(r.personas_en_rojo) or 'ninguna'}")
     print(f"  Personas con documentación a punto de caducar: {', '.join(r.personas_en_ambar) or 'ninguna'}")
     print(f"  {r.asignaciones} asignaciones; con aviso de documentación: {', '.join(r.asignaciones_con_aviso) or 'ninguna'}")
+    print(f"  {r.planes} planes preventivos. Vencidos: {'; '.join(r.preventivos_vencidos) or 'ninguno'}")
+    print(f"  Preventivos próximos: {'; '.join(r.preventivos_proximos) or 'ninguno'}")
     print(f"Usuarios (contraseña: {args.password}):")
     for email in r.usuarios:
         print(f"  {email}")

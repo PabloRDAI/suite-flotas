@@ -81,3 +81,5 @@ SoloAdmin = Annotated[Usuario, Depends(requiere_roles(RolUsuario.ADMIN))]
 GestionFlota = Annotated[Usuario, Depends(requiere_roles(RolUsuario.ADMIN, RolUsuario.TRAFICO))]
 # - GestionPersonal: alta, edición, baja y documentación del personal (gerente y jefe de tráfico).
 GestionPersonal = GestionFlota
+# - GestionTaller: planes de mantenimiento, averías y órdenes de trabajo (gerente y jefe de taller).
+GestionTaller = Annotated[Usuario, Depends(requiere_roles(RolUsuario.ADMIN, RolUsuario.TALLER))]

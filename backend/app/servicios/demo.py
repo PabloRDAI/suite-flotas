@@ -10,7 +10,8 @@ Todo es inventado: nombre de empresa, marcas, matrículas y emails
 "hoy", así que siempre hay vencimientos en rojo y en ámbar para enseñar.
 
 Incluye 30 personas con su documentación (PER-01, PER-02) y sus asignaciones a
-vehículos con historial (PER-03). Pendiente de ampliar
+vehículos con historial (PER-03), y planes de mantenimiento preventivo con su estado
+en cada vehículo (MAN-01). Pendiente de ampliar
 cuando existan sus tablas: 6 meses de historial de mantenimiento.
 """
 
@@ -27,10 +28,13 @@ from app.models import (
     Centro,
     Combustible,
     Empresa,
+    EstadoPlan,
     LecturaKm,
     Persona,
+    PlanMantenimiento,
     Puesto,
     RolUsuario,
+    TareaPlan,
     TipoCentro,
     TipoVehiculo,
     TipoVencimiento,
@@ -40,9 +44,11 @@ from app.models import (
     Vencimiento,
 )
 from app.reglas.asignaciones import avisos_de_documentacion
+from app.reglas.preventivo import Situacion, calcular_proximo, evaluar
 from app.reglas.vencimientos import Documento, Semaforo, aptitud_para_salir, semaforo, vigentes
 from app.seguridad import hash_password
 from app.servicios.estado_vehiculo import actualizar_estado
+from app.servicios.preventivos import recalcular
 
 NOMBRE_EMPRESA = "Transportes Demo (ficticia)"
 DOMINIO = "demo.example.com"
@@ -141,6 +147,31 @@ ENLACE_USUARIOS = {
     RolUsuario.TRAFICO: (Puesto.TRAFICO, 0),
     RolUsuario.TALLER: (Puesto.MECANICO, 0),
     RolUsuario.CONDUCTOR: (Puesto.CONDUCTOR, 3),  # un conductor con la documentación en regla
+}
+
+# Planes preventivos por tipo: (nombre, intervalo_km, intervalo_dias, tareas)
+_ACEITE = ["Cambio de aceite del motor", "Filtro de aceite", "Filtro de aire", "Filtro de combustible"]
+_FRENOS = ["Pastillas y discos de freno", "Líquido de frenos", "Prueba de frenada"]
+PLANES_DEMO = {
+    "Autobús": [
+        ("Mantenimiento A", 30_000, 365, _ACEITE),
+        ("Revisión de frenos", 60_000, None, _FRENOS),
+        ("Revisión anual", None, 365, ["Climatización", "Puertas y rampa", "Alumbrado", "Extintores"]),
+    ],
+    "Microbús": [("Mantenimiento A", 25_000, 365, _ACEITE)],
+    "Furgoneta": [("Mantenimiento A", 20_000, 365, _ACEITE)],
+    "Camión rígido": [("Mantenimiento A", 40_000, 365, _ACEITE), ("Revisión de frenos", 80_000, None, _FRENOS)],
+    "Cisterna": [
+        ("Mantenimiento A", 40_000, 365, _ACEITE),
+        ("Revisión de la cisterna", None, 180, ["Estanqueidad", "Válvulas", "Toma de tierra"]),
+    ],
+}
+# Casos especiales de preventivo: nº de vehículo -> (plan, caso)
+CASOS_ESPECIALES_PREVENTIVO = {
+    6: ("Mantenimiento A", "vencido_km"),
+    7: ("Revisión anual", "vencido_fecha"),
+    8: ("Mantenimiento A", "proximo_km"),
+    9: ("Mantenimiento A", "proximo_fecha"),  # el primer microbús
 }
 
 # Casos especiales para que el panel tenga de todo: nº de vehículo -> (documento, días hasta caducar)
@@ -302,6 +333,46 @@ def planificar_asignaciones(hoy: date, personal: list[PersonaPlan], semilla: int
     return plan
 
 
+@dataclass(frozen=True)
+class PreventivoPlan:
+    vehiculo: int  # índice en el plan de vehículos
+    plan: str  # nombre del plan (dentro de su tipo)
+    ultima_fecha: date
+    ultimos_km: int
+
+
+def planificar_preventivos(hoy: date, vehiculos: list[VehiculoPlan], semilla: int = SEMILLA) -> list[PreventivoPlan]:
+    """Último mantenimiento de cada plan en cada vehículo: casi todos al día, salvo los casos especiales.
+
+    Los normales se hicieron hace como mucho un 80 % del intervalo (fuera del margen de previsión).
+    """
+    rng = random.Random(semilla + 3)
+    km_por_dia = {nombre: km for nombre, _, km in TIPOS_VEHICULO}
+    resultado: list[PreventivoPlan] = []
+    for n, v in enumerate(vehiculos):
+        km_actuales = v.lecturas[-1][1]
+        for nombre, intervalo_km, intervalo_dias, _ in PLANES_DEMO[v.tipo]:
+            especial = CASOS_ESPECIALES_PREVENTIVO.get(n)
+            caso = especial[1] if especial and especial[0] == nombre else None
+            if caso == "vencido_km":
+                dias_desde, km_desde = 90, intervalo_km + 1_500
+            elif caso == "vencido_fecha":
+                dias_desde, km_desde = intervalo_dias + 15, 5_000
+            elif caso == "proximo_km":
+                dias_desde, km_desde = 60, intervalo_km - 1_200
+            elif caso == "proximo_fecha":
+                dias_desde, km_desde = intervalo_dias - 12, 5_000
+            else:
+                dias_desde = rng.randint(10, int((intervalo_dias or 250) * 0.8))
+                km_desde = int(dias_desde * km_por_dia[v.tipo] * rng.uniform(0.6, 0.9))
+                if intervalo_km:
+                    km_desde = min(km_desde, int(intervalo_km * 0.8))
+            resultado.append(
+                PreventivoPlan(n, nombre, hoy - timedelta(days=dias_desde), max(km_actuales - km_desde, 0))
+            )
+    return resultado
+
+
 # --- 2. Guardar en la base de datos ------------------------------------------
 
 
@@ -318,6 +389,9 @@ class ResumenDemo:
     personas: int = 0
     asignaciones: int = 0
     asignaciones_con_aviso: list[str] = field(default_factory=list)  # "persona → matrícula" con aviso PER-04
+    planes: int = 0
+    preventivos_vencidos: list[str] = field(default_factory=list)  # "matrícula: plan (motivo)"
+    preventivos_proximos: list[str] = field(default_factory=list)
     personas_en_rojo: list[str] = field(default_factory=list)  # nombres con documentación caducada
     personas_en_ambar: list[str] = field(default_factory=list)  # nombres con documentación a punto de caducar
 
@@ -338,7 +412,10 @@ def buscar_empresa_demo(db: Session) -> int | None:
 def borrar_empresa(db: Session, empresa_id: int) -> None:
     """Borra una empresa y TODOS sus datos, en orden (de las tablas hijas a la empresa)."""
     # Asignacion y Vencimiento antes que Vehiculo y Persona; Persona antes que Usuario (lo referencia).
-    for modelo in (Asignacion, Vencimiento, LecturaKm, Vehiculo, Persona, TipoVencimiento, TipoVehiculo, Centro, Usuario):
+    for modelo in (
+        Asignacion, Vencimiento, EstadoPlan, LecturaKm, Vehiculo, Persona,
+        TareaPlan, PlanMantenimiento, TipoVencimiento, TipoVehiculo, Centro, Usuario,
+    ):
         db.execute(delete(modelo).where(modelo.empresa_id == empresa_id))
     db.execute(delete(Empresa).where(Empresa.id == empresa_id))
 
@@ -476,6 +553,39 @@ def crear_empresa_demo(
         if en_vigor_o_futura and avisos_de_documentacion(documentos_persona[pa.persona], max(pa.desde, hoy)):
             asignaciones_con_aviso.append(f"{persona.nombre} → {vehiculo.matricula}")
 
+    # Planes preventivos (MAN-01) y su estado en cada vehículo.
+    planes: dict[tuple[str, str], PlanMantenimiento] = {}
+    for tipo, lista in PLANES_DEMO.items():
+        for nombre, intervalo_km, intervalo_dias, tareas in lista:
+            plan_m = PlanMantenimiento(
+                empresa_id=eid, tipo_vehiculo_id=tipos_vehiculo[tipo].id, nombre=nombre,
+                intervalo_km=intervalo_km, intervalo_dias=intervalo_dias,
+            )
+            db.add(plan_m)
+            db.flush()
+            db.add_all(TareaPlan(empresa_id=eid, plan_id=plan_m.id, orden=i, descripcion=t) for i, t in enumerate(tareas, 1))
+            planes[(tipo, nombre)] = plan_m
+    plan_vehiculos = planificar_demo(hoy)
+    preventivos_vencidos: list[str] = []
+    preventivos_proximos: list[str] = []
+    for prev in planificar_preventivos(hoy, plan_vehiculos):
+        vehiculo = vehiculos_creados[prev.vehiculo]
+        plan_m = planes[(plan_vehiculos[prev.vehiculo].tipo, prev.plan)]
+        estado = EstadoPlan(
+            empresa_id=eid, vehiculo_id=vehiculo.id, plan_id=plan_m.id,
+            ultima_fecha=prev.ultima_fecha, ultimos_km=prev.ultimos_km,
+        )
+        recalcular(estado, plan_m)
+        db.add(estado)
+        e = evaluar(
+            calcular_proximo(prev.ultima_fecha, prev.ultimos_km, plan_m.intervalo_dias, plan_m.intervalo_km),
+            hoy, vehiculo.km_actuales,
+        )
+        if e.situacion == Situacion.VENCIDO:
+            preventivos_vencidos.append(f"{vehiculo.matricula}: {prev.plan} ({e.motivo})")
+        elif e.situacion == Situacion.PROXIMO:
+            preventivos_proximos.append(f"{vehiculo.matricula}: {prev.plan} ({e.motivo})")
+
     db.flush()
     return ResumenDemo(
         empresa_id=eid,
@@ -491,4 +601,7 @@ def crear_empresa_demo(
         personas_en_ambar=personas_en_ambar,
         asignaciones=len(plan_asignaciones),
         asignaciones_con_aviso=asignaciones_con_aviso,
+        planes=len(planes),
+        preventivos_vencidos=preventivos_vencidos,
+        preventivos_proximos=preventivos_proximos,
     )

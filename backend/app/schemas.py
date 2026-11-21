@@ -13,6 +13,7 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, StringConstraints, model_validator
 
 from app.models import AplicaA, Combustible, EstadoVehiculo, Puesto, RolUsuario, TipoCentro, UnidadCapacidad
+from app.reglas.preventivo import Situacion
 from app.reglas.vencimientos import Semaforo
 
 # --- Tipos reutilizables -----------------------------------------------------
@@ -282,6 +283,83 @@ class AsignacionSalida(BaseModel):
     vigente: bool  # ¿está en vigor hoy?
     # PER-04: avisos por documentación caducada del conductor (no bloquean).
     avisos: list[str]
+
+
+# --- Mantenimiento preventivo (MAN-01) ---------------------------------------
+
+IntervaloKm = Annotated[int, Field(gt=0, le=1_000_000)]
+IntervaloDias = Annotated[int, Field(gt=0, le=3650)]
+Tarea = Annotated[Texto, Field(max_length=200)]
+
+
+class PlanCrear(EntradaEstricta):
+    """Plan preventivo: "cada X km o Y días (lo que llegue antes)". Al menos un intervalo."""
+
+    nombre: Annotated[Texto, Field(max_length=100)]
+    tipo_vehiculo_id: int
+    intervalo_km: IntervaloKm | None = None
+    intervalo_dias: IntervaloDias | None = None
+    tareas: list[Tarea] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode="after")
+    def al_menos_un_intervalo(self) -> "PlanCrear":
+        if self.intervalo_km is None and self.intervalo_dias is None:
+            raise ValueError("Indica un intervalo por km, por días o ambos")
+        return self
+
+
+class PlanEditar(EntradaEstricta):
+    """Edición parcial. Un intervalo puede quitarse (null) si queda el otro.
+    `tareas` sustituye la lista completa."""
+
+    nombre: Annotated[Texto, Field(max_length=100)] | None = None
+    intervalo_km: IntervaloKm | None = None
+    intervalo_dias: IntervaloDias | None = None
+    tareas: list[Tarea] | None = Field(default=None, max_length=50)
+
+    @model_validator(mode="after")
+    def no_vaciar_nombre_ni_tareas(self) -> "PlanEditar":
+        vaciados = [c for c in ("nombre", "tareas") if c in self.model_fields_set and getattr(self, c) is None]
+        if vaciados:
+            raise ValueError(f"Estos campos no pueden ser null: {', '.join(vaciados)} (para no tener tareas, envía [])")
+        return self
+
+
+class PlanSalida(BaseModel):
+    id: int
+    nombre: str
+    tipo_vehiculo_id: int
+    intervalo_km: int | None
+    intervalo_dias: int | None
+    activo: bool
+    tareas: list[str]
+
+
+class PreventivoSalida(BaseModel):
+    """Un plan aplicado a un vehículo: último, próximo y situación (regla 3)."""
+
+    plan_id: int
+    plan_nombre: str
+    intervalo_km: int | None
+    intervalo_dias: int | None
+    tareas: list[str]
+    ultima_fecha: date
+    ultimos_km: int
+    proxima_fecha: date | None
+    proximos_km: int | None
+    situacion: Situacion
+    motivo: str
+    dias_restantes: int | None
+    km_restantes: int | None
+    vencido_por_fecha: bool
+    vencido_por_km: bool
+
+
+class RealizacionCrear(EntradaEstricta):
+    """Registrar que se hizo un preventivo. Sin datos: hoy y con los km actuales del vehículo."""
+
+    fecha: date | None = None
+    km: Annotated[int, Field(ge=0)] | None = None
 
 
 class VehiculoPanel(BaseModel):

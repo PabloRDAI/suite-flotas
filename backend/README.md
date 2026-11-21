@@ -14,12 +14,13 @@ backend/
 │   ├── deps.py        Dependencias: usuario actual (401) y control de roles (403)
 │   ├── schemas.py     Esquemas Pydantic: lo que entra y sale por la API
 │   ├── reglas/        Motor de reglas en Python puro (sin BD): estado_vehiculo.py (FLO-03),
-│   │                  km.py (FLO-05), vencimientos.py (FLO-06/07), asignaciones.py (PER-03/04)
+│   │                  km.py (FLO-05), vencimientos.py (FLO-06/07), asignaciones.py (PER-03/04),
+│   │                  preventivo.py (MAN-01)
 │   ├── servicios/     Unen las reglas con la BD (p. ej. actualizar_estado del vehículo)
 │   ├── routers/       Endpoints agrupados por área (auth, vehiculos, lecturas_km…)
 │   ├── scripts/       Comandos de línea (crear_admin)
 │   └── models/        Modelos (tablas): empresa, centro, usuario, vehículos, lecturas de km,
-│                      vencimientos, personas y asignaciones
+│                      vencimientos, personas, asignaciones y planes de mantenimiento
 │       └── comun.py   Mixins reutilizables (empresa_id, fechas) y columnas de tipo enum
 ├── alembic/           Migraciones de la base de datos
 │   ├── env.py         Conecta Alembic con app.config y app.db.Base
@@ -107,7 +108,8 @@ Crea 2 centros, 5 tipos de vehículo, 25 vehículos con ~6 meses de lecturas de 
 (km iniciales coherentes con la antigüedad), tipos de vencimiento de vehículo y de persona,
 vencimientos con casos en rojo (2 vehículos no aptos) y en ámbar, y 30 personas (20 conductores,
 5 mecánicos, 3 de tráfico y 2 de otros puestos) con su documentación, también con casos en rojo y ámbar, y 27 asignaciones
-conductor-vehículo con historial y un aviso de documentación caducada. Usuarios `admin`, `trafico`, `taller` y `conductor` `@demo.example.com`
+conductor-vehículo con historial y un aviso de documentación caducada, y 9 planes preventivos
+con 2 vencidos (uno por km y otro por fecha) y 2 próximos. Usuarios `admin`, `trafico`, `taller` y `conductor` `@demo.example.com`
 con la contraseña `demostracion`. Todo es inventado; los datos son siempre los mismos (semilla
 fija) y las fechas se calculan desde el día en que se ejecuta. El historial de mantenimiento se
 añadirá cuando existan sus tablas.
@@ -172,6 +174,11 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | POST | `/asignaciones` | admin, tráfico | Asignar conductor/a (habitual o temporal); 409 si hay otro habitual en esas fechas |
 | POST | `/asignaciones/{id}/finalizar` | admin, tráfico | Poner fecha de fin (por defecto, ayer) |
 | DELETE | `/asignaciones/{id}` | admin, tráfico | Borrar una asignación registrada por error |
+| GET | `/planes` | todos | Planes preventivos con sus tareas (filtro `tipo_vehiculo_id`) |
+| POST | `/planes` | admin, taller | Crear un plan (km, días o ambos); los vehículos de ese tipo empiezan a contar desde hoy |
+| GET/PATCH/DELETE | `/planes/{id}` | todos / admin, taller | Ver, editar (recalcula los próximos) o dar de baja |
+| GET | `/vehiculos/{id}/preventivos` | todos | Situación de cada plan en el vehículo (vencidos primero) |
+| POST | `/vehiculos/{id}/preventivos/{plan_id}/realizado` | admin, taller | Registrar que se hizo (fecha y km) y recalcular |
 
 La matrícula se normaliza al guardar (`"1234 abc"`, `"1234-ABC"` → `"1234ABC"`), así que la regla
 de unicidad no se puede saltar escribiéndola de otra forma. Una matrícula dada de baja sigue ocupada.
@@ -199,6 +206,13 @@ barrera, con una restricción de exclusión de PostgreSQL (`EXCLUDE USING gist �
 hasta, '[]') WITH &&`, extensión `btree_gist`). Las asignaciones no se borran al terminar: se
 finalizan con fecha de fin, y así se conserva el historial. Si la documentación imprescindible del
 conductor está caducada, la respuesta incluye `avisos`, pero la asignación se hace igualmente.
+
+**Mantenimiento preventivo (MAN-01, regla 3):** cada plan es "cada X km o Y días (lo que llegue
+antes)", por tipo de vehículo. Para cada vehículo se guarda el último realizado y se calcula el
+próximo (`proxima_fecha = ultima_fecha + intervalo_dias`, `proximos_km = ultimos_km + intervalo_km`).
+Vence cuando se alcanza la primera de las dos; está "próximo" si faltan ≤ 30 días o ≤ 2.000 km
+(margen de MAN-02). Regla en `app/reglas/preventivo.py`; al crear un plan o un vehículo, se empieza
+a contar desde hoy y sus km actuales, hasta que el taller registre la realización real.
 
 **Estado del vehículo (FLO-03, regla 1):** de baja si está inactivo; en taller si tiene una OT
 abierta que inmoviliza; inmovilizado si tiene una avería "inmoviliza" sin OT abierta; si no,

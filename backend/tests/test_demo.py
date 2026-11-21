@@ -8,11 +8,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Asignacion, Centro, Empresa, LecturaKm, Persona, RolUsuario, Usuario, Vehiculo
+from app.models import Asignacion, Centro, Empresa, EstadoPlan, LecturaKm, Persona, RolUsuario, Usuario, Vehiculo
 from app.reglas.asignaciones import AsignacionExistente, Periodo, comprobar_habitual
 from app.reglas.km import Lectura, comprobar_lectura
 from app.servicios.demo import (
     PASSWORD_DEMO,
+    PLANES_DEMO,
     TIPOS_VEHICULO,
     DemoYaExiste,
     crear_empresa_demo,
@@ -20,6 +21,7 @@ from app.servicios.demo import (
     planificar_asignaciones,
     planificar_demo,
     planificar_personal,
+    planificar_preventivos,
 )
 from tests.fabricas import crear_empresa, crear_usuario
 
@@ -177,6 +179,29 @@ def test_crea_las_asignaciones_con_historial_y_aviso(db: Session) -> None:
     )
     assert terminadas == 6  # las 5 habituales anteriores + la temporal pasada
     assert len(r.asignaciones_con_aviso) == 1  # la conductora con el CAP caducado
+
+
+# --- Preventivos (MAN-01) ----------------------------------------------------
+
+
+def test_los_estados_de_los_preventivos_son_coherentes() -> None:
+    """Ninguna realización futura ni con más km de los que tiene el vehículo."""
+    vehiculos = planificar_demo(HOY)
+    for p in planificar_preventivos(HOY, vehiculos):
+        assert p.ultima_fecha <= HOY
+        assert 0 <= p.ultimos_km <= vehiculos[p.vehiculo].lecturas[-1][1]
+
+
+def test_crea_los_planes_con_casos_vencidos_y_proximos(db: Session) -> None:
+    r = crear_empresa_demo(db, hoy=HOY)
+
+    assert r.planes == sum(len(planes) for planes in PLANES_DEMO.values()) == 9
+    assert len(r.preventivos_vencidos) == 2
+    assert any("Vencido por km" in v for v in r.preventivos_vencidos)
+    assert any("Vencido por fecha" in v for v in r.preventivos_vencidos)
+    assert len(r.preventivos_proximos) == 2
+    # Cada vehículo tiene el estado de todos los planes de su tipo.
+    assert contar(db, EstadoPlan, r.empresa_id) == sum(len(PLANES_DEMO[v.tipo]) for v in planificar_demo(HOY))
 
 
 # --- Realismo de los datos ---------------------------------------------------

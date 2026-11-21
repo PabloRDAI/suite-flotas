@@ -16,6 +16,7 @@ from app.deps import Db, GestionFlota, UsuarioActual
 from app.models import Centro, LecturaKm, TipoVehiculo, Usuario, Vehiculo
 from app.schemas import VehiculoCrear, VehiculoEditar, VehiculoSalida
 from app.servicios.estado_vehiculo import actualizar_estado
+from app.servicios.preventivos import sincronizar_vehiculo
 
 router = APIRouter(prefix="/vehiculos", tags=["vehículos"])
 
@@ -138,6 +139,7 @@ def crear_vehiculo(datos: VehiculoCrear, usuario: GestionFlota, db: Db) -> Vehic
             registrada_por_id=usuario.id,
         )
     )
+    sincronizar_vehiculo(db, vehiculo, date.today())  # MAN-01: los planes de su tipo empiezan a contar
     db.commit()
     return VehiculoSalida.model_validate(vehiculo)
 
@@ -161,6 +163,9 @@ def editar_vehiculo(vehiculo_id: int, datos: VehiculoEditar, usuario: GestionFlo
 
     for campo, valor in cambios.items():
         setattr(vehiculo, campo, valor)
+    if "tipo_id" in cambios:
+        _guardar(db, solo_flush=True)
+        sincronizar_vehiculo(db, vehiculo, date.today())  # MAN-01: planes del nuevo tipo
     _guardar(db)
     return VehiculoSalida.model_validate(vehiculo)
 
