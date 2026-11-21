@@ -95,6 +95,20 @@ cada test trabaja dentro de una transacción que se deshace al terminar (fixture
 
 Revisa siempre a mano las migraciones generadas con `--autogenerate` antes de aplicarlas.
 
+## Datos de demostración (GEN-04)
+
+```powershell
+python -m app.scripts.demo              # crea "Transportes Demo (ficticia)"
+python -m app.scripts.demo --reiniciar  # la borra y la vuelve a crear (solo la demo)
+```
+
+Crea 2 centros, 5 tipos de vehículo, 25 vehículos con ~6 meses de lecturas de km semanales,
+tipos de vencimiento de vehículo y de persona, y vencimientos con casos en rojo (2 vehículos
+no aptos) y en ámbar. Usuarios `admin`, `trafico`, `taller` y `conductor` `@demo.example.com`
+con la contraseña `demostracion`. Todo es inventado; los datos son siempre los mismos (semilla
+fija) y las fechas se calculan desde el día en que se ejecuta. Personas e historial de
+mantenimiento se añadirán cuando existan sus tablas.
+
 ## Autenticación y permisos
 
 1. **Crear la primera empresa y su administrador** (pide la contraseña sin mostrarla):

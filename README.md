@@ -56,6 +56,13 @@ Después, en dos terminales:
 1. **API:** sigue [`backend/README.md`](backend/README.md) → http://127.0.0.1:8000/salud
 2. **Web:** sigue [`frontend/README.md`](frontend/README.md) → http://localhost:5173
 
+Para tener datos con los que probar, crea la empresa de demostración (todo ficticio):
+
+```bash
+cd backend
+python -m app.scripts.demo     # usuarios admin|trafico|taller|conductor@demo.example.com, contraseña "demostracion"
+```
+
 ## Integración continua
 
 En cada `push` a `main`, GitHub Actions ([`ci.yml`](.github/workflows/ci.yml)) ejecuta los tests del
