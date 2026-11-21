@@ -8,6 +8,7 @@ aplicación no arranca y lo dice claramente.
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/app/config.py -> parents[2] = raíz del repositorio (suite-flotas/)
@@ -28,6 +29,13 @@ class Settings(BaseSettings):
     # Segundos máximos para ABRIR una conexión con PostgreSQL. Sin este límite,
     # si la BD está parada la petición puede quedarse colgada más de un minuto.
     db_connect_timeout: int = 3
+
+    # Clave para firmar los tokens de sesión (JWT). Quien la conozca puede
+    # fabricar tokens válidos: larga, aleatoria y solo en el .env.
+    # Generar una:  python -c "import secrets; print(secrets.token_urlsafe(48))"
+    jwt_secreto: str = Field(min_length=32)
+    # Minutos que dura una sesión antes de tener que volver a hacer login.
+    jwt_minutos: int = 480
 
     nombre_app: str = "Suite Flotas API"
 

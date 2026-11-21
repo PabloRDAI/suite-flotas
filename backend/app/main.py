@@ -9,8 +9,12 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
+from app.routers import auth, vehiculos
 
 app = FastAPI(title=get_settings().nombre_app, version="0.1.0")
+
+app.include_router(auth.router)
+app.include_router(vehiculos.router)
 
 
 @app.get("/salud", tags=["sistema"])

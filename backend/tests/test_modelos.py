@@ -131,7 +131,7 @@ def test_cada_empresa_define_sus_propios_tipos(db: Session) -> None:
 
 
 def test_email_de_usuario_unico(db: Session) -> None:
-    crear_usuario(db, crear_empresa(db, "Empresa A"), "ana@ejemplo.test")
+    crear_usuario(db, crear_empresa(db, "Empresa A"), "ana@example.com")
 
     with pytest.raises(IntegrityError, match="uq_usuario_email"):
-        crear_usuario(db, crear_empresa(db, "Empresa B"), "ana@ejemplo.test")
+        crear_usuario(db, crear_empresa(db, "Empresa B"), "ana@example.com")

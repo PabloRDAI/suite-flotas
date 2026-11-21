@@ -17,6 +17,7 @@ from app.models import (
     Usuario,
     Vehiculo,
 )
+from app.seguridad import crear_token, hash_password
 
 
 def crear_empresa(db: Session, nombre: str = "Transportes Ficticios S.L.") -> Empresa:
@@ -40,17 +41,44 @@ def crear_tipo(db: Session, empresa: Empresa, nombre: str = "Autobús") -> TipoV
     return tipo
 
 
-def crear_usuario(db: Session, empresa: Empresa, email: str = "gerente@ejemplo.test") -> Usuario:
+def crear_usuario(
+    db: Session,
+    empresa: Empresa,
+    email: str = "gerente@example.com",
+    rol: RolUsuario = RolUsuario.ADMIN,
+    password: str | None = None,
+    activo: bool = True,
+) -> Usuario:
+    """Crea un usuario. Con `password` se guarda su hash real (para tests de login)."""
     usuario = Usuario(
         empresa_id=empresa.id,
         email=email,
         nombre="Usuario de prueba",
-        hash_password="no-es-un-hash-real",
-        rol=RolUsuario.ADMIN,
+        hash_password=hash_password(password) if password else "no-es-un-hash-real",
+        rol=rol,
+        activo=activo,
     )
     db.add(usuario)
     db.flush()
     return usuario
+
+
+def cabeceras(usuario: Usuario) -> dict[str, str]:
+    """Cabecera HTTP con un token válido para `usuario` (sin pasar por el login)."""
+    return {"Authorization": f"Bearer {crear_token(usuario.id)}"}
+
+
+def crear_vehiculo(db: Session, empresa: Empresa, matricula: str = "1234ABC") -> Vehiculo:
+    """Crea un vehículo con su centro y su tipo (todo de la misma empresa)."""
+    vehiculo = nuevo_vehiculo(
+        empresa,
+        crear_centro(db, empresa, f"Centro {matricula}"),
+        crear_tipo(db, empresa, f"Tipo {matricula}"),
+        matricula=matricula,
+    )
+    db.add(vehiculo)
+    db.flush()
+    return vehiculo
 
 
 def nuevo_vehiculo(empresa: Empresa, centro: Centro, tipo: TipoVehiculo, **cambios: Any) -> Vehiculo:

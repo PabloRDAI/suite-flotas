@@ -7,9 +7,14 @@ API REST con **FastAPI**, **SQLAlchemy** y **Alembic** sobre PostgreSQL, tests c
 ```
 backend/
 ├── app/
-│   ├── config.py      Configuración leída del .env (DATABASE_URL…)
+│   ├── config.py      Configuración leída del .env (DATABASE_URL, JWT_SECRETO…)
 │   ├── db.py          Conexión a PostgreSQL: engine, sesiones, Base y convención de nombres
-│   ├── main.py        Aplicación FastAPI y endpoints
+│   ├── main.py        Aplicación FastAPI: registra los routers
+│   ├── seguridad.py   Hash de contraseñas (Argon2) y tokens de sesión (JWT)
+│   ├── deps.py        Dependencias: usuario actual (401) y control de roles (403)
+│   ├── schemas.py     Esquemas Pydantic: lo que entra y sale por la API
+│   ├── routers/       Endpoints agrupados por área (auth, vehiculos…)
+│   ├── scripts/       Comandos de línea (crear_admin)
 │   └── models/        Modelos (tablas): empresa, centro, usuario, tipo_vehiculo, vehiculo
 │       └── comun.py   Mixins reutilizables (empresa_id, fechas) y columnas de tipo enum
 ├── alembic/           Migraciones de la base de datos
@@ -33,7 +38,8 @@ py -3.14 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 
 # 2. Activar el entorno virtual (en cada terminal nueva)
-.\.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1      # PowerShell
+.venv\Scripts\activate.bat        # CMD
 
 # 3. Aplicar las migraciones a la base de datos
 alembic upgrade head
@@ -83,8 +89,34 @@ deshace al terminar (fixture `db` en `tests/conftest.py`), así que no deja dato
 
 Revisa siempre a mano las migraciones generadas con `--autogenerate` antes de aplicarlas.
 
+## Autenticación y permisos
+
+1. **Crear la primera empresa y su administrador** (pide la contraseña sin mostrarla):
+
+   ```powershell
+   python -m app.scripts.crear_admin --empresa "Transportes Ficticios" --email admin@example.com --nombre "Ana Admin"
+   ```
+
+2. **Login:** `POST /auth/login` con `{"email": "...", "password": "..."}` → devuelve `access_token`.
+3. **Usar el token:** en cada petición, cabecera `Authorization: Bearer <access_token>`.
+   En `/docs`, pulsa **Authorize** y pega el token.
+
+| Código | Significado |
+|---|---|
+| 401 | Sin token, token falso o caducado, o usuario desactivado |
+| 403 | Usuario identificado, pero su rol no permite la acción |
+| 404 | El recurso no existe **o es de otra empresa** (no se revela que existe) |
+
+Reglas de diseño: todas las consultas filtran por `usuario.empresa_id` (GEN-01); el rol se comprueba
+con la dependencia `requiere_roles(...)` (GEN-02); el usuario se relee de la BD en cada petición,
+así que desactivarlo o cambiarle el rol surte efecto al momento.
+
 ## Endpoints
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | `/salud` | 200 si la API y la BD funcionan; 503 si la BD no responde |
+| Método | Ruta | Roles | Descripción |
+|---|---|---|---|
+| GET | `/salud` | público | 200 si la API y la BD funcionan; 503 si la BD no responde |
+| POST | `/auth/login` | público | Email + contraseña → token de sesión |
+| GET | `/auth/yo` | todos | Datos del usuario conectado |
+| GET | `/vehiculos` | todos | Vehículos activos de la empresa del usuario |
+| DELETE | `/vehiculos/{id}` | admin, tráfico | Baja lógica del vehículo |

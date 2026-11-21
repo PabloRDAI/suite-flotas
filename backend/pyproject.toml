@@ -10,6 +10,9 @@ dependencies = [
     "alembic>=1.14",             # migraciones: cambios versionados del esquema de la BD
     "psycopg[binary]>=3.2",      # driver: cómo Python habla con PostgreSQL
     "pydantic-settings>=2.6",    # leer la configuración (.env) con validación
+    "argon2-cffi>=23.1",         # hash seguro de contraseñas (Argon2)
+    "pyjwt>=2.9",                # tokens de sesión firmados (JWT)
+    "email-validator>=2.2",      # validar el formato de los emails (pydantic EmailStr)
 ]
 
 [project.optional-dependencies]

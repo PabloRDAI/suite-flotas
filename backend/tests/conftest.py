@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.db import engine
+from app.db import engine, get_db
 from app.main import app
 
 
@@ -45,3 +45,16 @@ def db() -> Iterator[Session]:
         sesion.close()
         transaccion.rollback()
         conexion.close()
+
+
+@pytest.fixture
+def api(db: Session) -> Iterator[TestClient]:
+    """Cliente HTTP cuyos endpoints usan la MISMA sesión que el test (fixture `db`).
+
+    Así los datos que crea el test son visibles para la API, y lo que haga la
+    API (incluidos sus commits, que aquí son savepoints) se deshace al final.
+    """
+    app.dependency_overrides[get_db] = lambda: db
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()

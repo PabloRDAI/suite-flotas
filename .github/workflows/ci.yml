@@ -38,6 +38,8 @@ jobs:
     # En CI no hay archivo .env: la configuración va como variable de entorno.
     env:
       DATABASE_URL: postgresql+psycopg://suite:suite_ci@127.0.0.1:5432/suite_flotas
+      # Clave solo para los tests de CI (BD temporal sin datos reales).
+      JWT_SECRETO: clave-de-ci-solo-para-tests-no-usar-en-produccion
 
     steps:
       - name: Descargar el código
