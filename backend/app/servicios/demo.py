@@ -11,13 +11,14 @@ Todo es inventado: nombre de empresa, marcas, matrículas y emails
 
 Incluye 30 personas con su documentación (PER-01, PER-02) y sus asignaciones a
 vehículos con historial (PER-03), planes de mantenimiento preventivo con su estado
-en cada vehículo (MAN-01) y averías comunicadas (MAN-03). Pendiente de ampliar
-cuando existan sus tablas: 6 meses de historial de mantenimiento.
+en cada vehículo (MAN-01), averías comunicadas (MAN-03) y 6 meses de historial
+de órdenes de trabajo con sus costes (MAN-04 a MAN-06): todo lo que pide GEN-04.
 """
 
 import random
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -31,6 +32,8 @@ from app.models import (
     Empresa,
     EstadoPlan,
     LecturaKm,
+    LineaOT,
+    OrdenTrabajo,
     Persona,
     PlanMantenimiento,
     Puesto,
@@ -45,7 +48,8 @@ from app.models import (
     Vencimiento,
 )
 from app.reglas.asignaciones import avisos_de_documentacion
-from app.reglas.estado_vehiculo import EstadoAveria, GravedadAveria
+from app.reglas.estado_vehiculo import EstadoAveria, EstadoOT, GravedadAveria
+from app.reglas.ordenes import Concepto, Linea, OrigenOT, TipoOT, coste
 from app.reglas.preventivo import Situacion, calcular_proximo, evaluar
 from app.reglas.vencimientos import Documento, Semaforo, aptitud_para_salir, semaforo, vigentes
 from app.seguridad import hash_password
@@ -184,6 +188,33 @@ AVERIAS_DEMO = [
     (12, GravedadAveria.LEVE, "El retrovisor derecho vibra en carretera", False, 2),
     (13, GravedadAveria.LEVE, "Luz de cortesía del pasillo fundida", True, 9),
 ]
+
+# Órdenes de trabajo de la demo (MAN-04 a MAN-06). Precios inventados pero verosímiles.
+TARIFA_HORA = Decimal("45.00")
+# Recambios de cada plan preventivo: (descripción, cantidad, precio mínimo, precio máximo)
+RECAMBIOS_PLAN = {
+    "Mantenimiento A": [("Aceite de motor (litros)", 30, "3.10", "4.20"), ("Filtro de aceite", 1, "14", "26"),
+                        ("Filtro de aire", 1, "22", "48"), ("Filtro de combustible", 1, "18", "39")],
+    "Revisión de frenos": [("Juego de pastillas", 2, "48", "95"), ("Líquido de frenos (litros)", 2, "9", "14")],
+    "Revisión anual": [("Kit de revisión de climatización", 1, "35", "60")],
+    "Revisión de la cisterna": [("Juntas y precintos de válvulas", 1, "40", "90")],
+}
+EXTERNO_PLAN = {"Revisión de la cisterna": ("Prueba de estanqueidad (taller homologado)", "220", "320")}
+# Correctivas típicas: (descripción, horas mín, horas máx, recambios [(descripción, precio mín, precio máx)])
+CORRECTIVAS_DEMO = [
+    ("Sustitución de pastillas y discos delanteros", 2, 4, [("Discos de freno", "180", "260"), ("Pastillas", "60", "110")]),
+    ("Fuga en el circuito de refrigeración", 1, 3, [("Manguito de refrigeración", "25", "60"), ("Anticongelante", "20", "35")]),
+    ("Alternador sin carga", 2, 3, [("Alternador reconstruido", "240", "420")]),
+    ("Avería en la puerta de servicio", 1, 2, [("Electroválvula de puerta", "90", "160")]),
+    ("Pinchazo y cambio de neumático", 1, 1, [("Neumático", "210", "340")]),
+    ("Luces de posición traseras fundidas", 0.5, 1, [("Grupo óptico trasero", "45", "95")]),
+    ("Ruido en la suspensión trasera", 2, 5, [("Amortiguador", "120", "210")]),
+    ("Fallo del aire acondicionado", 2, 4, [("Recarga de gas y compresor", "180", "390")]),
+    ("Batería descargada", 0.5, 1, [("Batería 12 V", "130", "220")]),
+    ("Sensor de temperatura defectuoso", 1, 2, [("Sensor de temperatura", "35", "70")]),
+]
+# Abiertas en este momento: nº de vehículo -> (descripción, ¿en curso?, ¿inmoviliza?)
+OT_EN_CURSO_DEMO = (14, "Sustitución del kit de embrague", True)
 
 # Casos especiales para que el panel tenga de todo: nº de vehículo -> (documento, días hasta caducar)
 CASOS_ESPECIALES = {
@@ -384,6 +415,67 @@ def planificar_preventivos(hoy: date, vehiculos: list[VehiculoPlan], semilla: in
     return resultado
 
 
+@dataclass
+class OTPlan:
+    vehiculo: int
+    tipo: TipoOT
+    origen: OrigenOT
+    descripcion: str
+    abierta: date
+    cerrada: date | None  # None: sigue abierta o en curso
+    km: int | None
+    inmoviliza: bool
+    lineas: list[tuple[Concepto, str, Decimal, Decimal]]  # (concepto, descripción, cantidad, precio)
+    plan: str | None = None  # nombre del plan (preventivas)
+    en_curso: bool = False
+
+
+def _precio(rng: random.Random, minimo: str, maximo: str) -> Decimal:
+    return Decimal(str(round(rng.uniform(float(minimo), float(maximo)), 2)))
+
+
+def _horas(rng: random.Random, minimo: float, maximo: float) -> Decimal:
+    return Decimal(str(round(rng.uniform(minimo, maximo) * 2) / 2))  # de media en media hora
+
+
+def planificar_ordenes(
+    hoy: date, vehiculos: list[VehiculoPlan], preventivos: list[PreventivoPlan], semilla: int = SEMILLA
+) -> list[OTPlan]:
+    """6 meses de historial: preventivas (una por cada preventivo realizado en ese plazo),
+    10 correctivas cerradas y, abierta ahora, una en curso que inmoviliza."""
+    rng = random.Random(semilla + 4)
+    inicio = hoy - timedelta(days=DIAS_DE_HISTORIAL)
+    plan: list[OTPlan] = []
+
+    for prev in preventivos:
+        if prev.ultima_fecha < inicio:
+            continue
+        lineas = [(Concepto.MANO_OBRA, "Mano de obra del taller", _horas(rng, 1, 4), TARIFA_HORA)]
+        for desc, cantidad, minimo, maximo in RECAMBIOS_PLAN[prev.plan]:
+            lineas.append((Concepto.RECAMBIO, desc, Decimal(cantidad), _precio(rng, minimo, maximo)))
+        if prev.plan in EXTERNO_PLAN:
+            desc, minimo, maximo = EXTERNO_PLAN[prev.plan]
+            lineas.append((Concepto.EXTERNO, desc, Decimal(1), _precio(rng, minimo, maximo)))
+        plan.append(OTPlan(prev.vehiculo, TipoOT.PREVENTIVA, OrigenOT.PLAN, prev.plan,
+                           prev.ultima_fecha - timedelta(days=1), prev.ultima_fecha, prev.ultimos_km, True, lineas, prev.plan))
+
+    for desc, h_min, h_max, recambios in CORRECTIVAS_DEMO:
+        n = rng.randrange(len(vehiculos))
+        cerrada = inicio + timedelta(days=rng.randint(5, DIAS_DE_HISTORIAL - 5))
+        # Km de cierre: los de la última lectura de ese vehículo hasta esa fecha (coherentes con FLO-05).
+        km = max(k for f, k in vehiculos[n].lecturas if f <= cerrada)
+        lineas = [(Concepto.MANO_OBRA, "Mano de obra del taller", _horas(rng, h_min, h_max), TARIFA_HORA)]
+        lineas += [(Concepto.RECAMBIO, d, Decimal(1), _precio(rng, mn, mx)) for d, mn, mx in recambios]
+        plan.append(OTPlan(n, TipoOT.CORRECTIVA, OrigenOT.MANUAL, desc, cerrada - timedelta(days=rng.randint(0, 2)),
+                           cerrada, km, rng.random() < 0.5, lineas))
+
+    n, desc, inmoviliza = OT_EN_CURSO_DEMO
+    plan.append(OTPlan(n, TipoOT.CORRECTIVA, OrigenOT.MANUAL, desc, hoy - timedelta(days=1), None, None, inmoviliza,
+                       [(Concepto.MANO_OBRA, "Desmontaje de la caja de cambios", Decimal("3.5"), TARIFA_HORA),
+                        (Concepto.RECAMBIO, "Kit de embrague", Decimal(1), Decimal("485.00"))], en_curso=True))
+    return plan
+
+
 # --- 2. Guardar en la base de datos ------------------------------------------
 
 
@@ -403,6 +495,9 @@ class ResumenDemo:
     planes: int = 0
     preventivos_vencidos: list[str] = field(default_factory=list)  # "matrícula: plan (motivo)"
     preventivos_proximos: list[str] = field(default_factory=list)
+    ordenes: int = 0
+    ordenes_abiertas: list[str] = field(default_factory=list)  # "matrícula: descripción (estado)"
+    coste_mantenimiento: Decimal = Decimal("0.00")  # suma de las OT cerradas
     personas_en_rojo: list[str] = field(default_factory=list)  # nombres con documentación caducada
     personas_en_ambar: list[str] = field(default_factory=list)  # nombres con documentación a punto de caducar
 
@@ -429,7 +524,7 @@ def borrar_empresa(db: Session, empresa_id: int) -> None:
         borrar_foto(foto)
     # Asignacion y Vencimiento antes que Vehiculo y Persona; Persona antes que Usuario (lo referencia).
     for modelo in (
-        Averia, Asignacion, Vencimiento, EstadoPlan, LecturaKm, Vehiculo, Persona,
+        LineaOT, OrdenTrabajo, Averia, Asignacion, Vencimiento, EstadoPlan, LecturaKm, Vehiculo, Persona,
         TareaPlan, PlanMantenimiento, TipoVencimiento, TipoVehiculo, Centro, Usuario,
     ):
         db.execute(delete(modelo).where(modelo.empresa_id == empresa_id))
@@ -616,6 +711,44 @@ def crear_empresa_demo(
         db.flush()
         actualizar_estado(db, vehiculo)
 
+    # Órdenes de trabajo (MAN-04 a MAN-06): 6 meses de historial y las abiertas ahora.
+    taller_demo = next(u for u in usuarios if u.rol == RolUsuario.TALLER)
+    plan_ordenes = planificar_ordenes(hoy, plan_vehiculos, planificar_preventivos(hoy, plan_vehiculos))
+    ordenes_abiertas: list[str] = []
+    coste_mantenimiento = Decimal("0.00")
+    for o in plan_ordenes:
+        vehiculo = vehiculos_creados[o.vehiculo]
+        ot = OrdenTrabajo(
+            empresa_id=eid, vehiculo_id=vehiculo.id, tipo=o.tipo, origen=o.origen, descripcion=o.descripcion,
+            plan_id=planes[(plan_vehiculos[o.vehiculo].tipo, o.plan)].id if o.plan else None,
+            inmoviliza=o.inmoviliza, creada_por_id=taller_demo.id,
+            abierta_en=datetime.combine(o.abierta, time(8, 0), tzinfo=UTC),
+            estado=EstadoOT.EN_CURSO if o.en_curso else EstadoOT.CERRADA,
+            iniciada_en=datetime.combine(o.abierta, time(9, 0), tzinfo=UTC),
+            fecha_cierre=o.cerrada, km_cierre=o.km,
+        )
+        db.add(ot)
+        db.flush()
+        db.add_all(LineaOT(empresa_id=eid, ot_id=ot.id, concepto=c, descripcion=d, cantidad=q, precio_unitario=pr)
+                   for c, d, q, pr in o.lineas)
+        if o.cerrada:
+            coste_mantenimiento += coste(Linea(c, q, pr) for c, _, q, pr in o.lineas).total
+        else:
+            ordenes_abiertas.append(f"{vehiculo.matricula}: {o.descripcion} (en curso)")
+
+    # La avería grave abierta pasa a una OT (MAN-04: queda "en reparación").
+    grave = db.scalar(select(Averia).where(Averia.empresa_id == eid, Averia.gravedad == GravedadAveria.GRAVE))
+    if grave is not None:
+        db.add(OrdenTrabajo(
+            empresa_id=eid, vehiculo_id=grave.vehiculo_id, tipo=TipoOT.CORRECTIVA, origen=OrigenOT.AVERIA,
+            averia_id=grave.id, inmoviliza=False, descripcion=grave.descripcion, creada_por_id=taller_demo.id,
+        ))
+        grave.estado = EstadoAveria.EN_REPARACION
+        ordenes_abiertas.append(f"{next(v.matricula for v in vehiculos_creados if v.id == grave.vehiculo_id)}: {grave.descripcion} (abierta)")
+    db.flush()
+    for vehiculo in vehiculos_creados:
+        actualizar_estado(db, vehiculo)
+
     # Resumen con las mismas reglas que usa la API (ya con el estado final de cada vehículo).
     for vehiculo in vehiculos_creados:
         docs = docs_por_vehiculo[vehiculo.id]
@@ -642,4 +775,7 @@ def crear_empresa_demo(
         planes=len(planes),
         preventivos_vencidos=preventivos_vencidos,
         preventivos_proximos=preventivos_proximos,
+        ordenes=len(plan_ordenes) + (1 if grave is not None else 0),
+        ordenes_abiertas=ordenes_abiertas,
+        coste_mantenimiento=coste_mantenimiento,
     )

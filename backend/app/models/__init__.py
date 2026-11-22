@@ -10,6 +10,7 @@ from app.models.centro import Centro, TipoCentro
 from app.models.empresa import Empresa
 from app.models.lectura_km import LecturaKm
 from app.models.mantenimiento import EstadoPlan, PlanMantenimiento, TareaPlan
+from app.models.orden_trabajo import LineaOT, OrdenTrabajo
 from app.models.persona import Persona, Puesto
 from app.models.usuario import RolUsuario, Usuario
 from app.models.vencimiento import AplicaA, TipoVencimiento, Vencimiento
@@ -25,6 +26,8 @@ __all__ = [
     "EstadoPlan",
     "EstadoVehiculo",
     "LecturaKm",
+    "LineaOT",
+    "OrdenTrabajo",
     "Persona",
     "PlanMantenimiento",
     "Puesto",

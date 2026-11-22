@@ -7,30 +7,45 @@ Debe llamarse después de cualquier cambio que pueda alterar el estado:
 - abrir, cerrar o cancelar una orden de trabajo (MAN-04, MAN-05);
 - comunicar o resolver una avería (MAN-03).
 
-Las averías ya existen (MAN-03). Las órdenes de trabajo todavía no, así que
-_ordenes() devuelve una lista vacía: cuando existan, SOLO habrá que rellenarla
-(y con_ot_abierta de las averías). La regla y sus tests no cambian.
+Se diseñó con _ordenes() y _averias() vacías, antes de que existieran las averías y las
+OT; desde MAN-03 y MAN-04 leen las reales. La regla y sus tests no han cambiado.
 """
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Averia, Vehiculo
-from app.reglas.estado_vehiculo import EstadoAveria, EstadoVehiculo, ResumenAveria, ResumenOT, calcular_estado
+from app.models import Averia, OrdenTrabajo, Vehiculo
+from app.reglas.estado_vehiculo import (
+    ESTADOS_OT_ABIERTA,
+    EstadoAveria,
+    EstadoVehiculo,
+    ResumenAveria,
+    ResumenOT,
+    calcular_estado,
+)
 
 
 def _ordenes(db: Session, vehiculo: Vehiculo) -> list[ResumenOT]:
-    """Resumen de las órdenes de trabajo del vehículo (pendiente: MAN-04)."""
-    return []
+    """Órdenes de trabajo abiertas o en curso del vehículo (las cerradas o canceladas no influyen)."""
+    ordenes = db.scalars(
+        select(OrdenTrabajo).where(OrdenTrabajo.vehiculo_id == vehiculo.id, OrdenTrabajo.estado.in_(ESTADOS_OT_ABIERTA))
+    )
+    return [ResumenOT(ot.estado, ot.inmoviliza) for ot in ordenes]
 
 
 def _averias(db: Session, vehiculo: Vehiculo) -> list[ResumenAveria]:
-    """Averías no resueltas del vehículo (las resueltas no influyen en su estado)."""
-    averias = db.scalars(
-        select(Averia).where(Averia.vehiculo_id == vehiculo.id, Averia.estado != EstadoAveria.RESUELTA)
+    """Averías no resueltas del vehículo, indicando si tienen una OT abierta (MAN-04)."""
+    averias = list(
+        db.scalars(select(Averia).where(Averia.vehiculo_id == vehiculo.id, Averia.estado != EstadoAveria.RESUELTA))
     )
-    # con_ot_abierta=False hasta que existan las órdenes de trabajo (MAN-04).
-    return [ResumenAveria(a.gravedad, a.estado, con_ot_abierta=False) for a in averias]
+    con_ot = set(
+        db.scalars(
+            select(OrdenTrabajo.averia_id).where(
+                OrdenTrabajo.averia_id.in_([a.id for a in averias]), OrdenTrabajo.estado.in_(ESTADOS_OT_ABIERTA)
+            )
+        )
+    )
+    return [ResumenAveria(a.gravedad, a.estado, con_ot_abierta=a.id in con_ot) for a in averias]
 
 
 def actualizar_estado(db: Session, vehiculo: Vehiculo) -> EstadoVehiculo:

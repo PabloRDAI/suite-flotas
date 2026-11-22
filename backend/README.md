@@ -15,7 +15,7 @@ backend/
 │   ├── schemas.py     Esquemas Pydantic: lo que entra y sale por la API
 │   ├── reglas/        Motor de reglas en Python puro (sin BD): estado_vehiculo.py (FLO-03),
 │   │                  km.py (FLO-05), vencimientos.py (FLO-06/07), asignaciones.py (PER-03/04),
-│   │                  preventivo.py (MAN-01)
+│   │                  preventivo.py (MAN-01/02), ordenes.py (MAN-05/06)
 │   ├── servicios/     Unen las reglas con la BD (estado del vehículo, preventivos, demo…)
 │   │                  y adjuntos.py: guardar y servir fotos con seguridad
 │   ├── routers/       Endpoints agrupados por área (auth, vehiculos, lecturas_km…)
@@ -110,7 +110,8 @@ Crea 2 centros, 5 tipos de vehículo, 25 vehículos con ~6 meses de lecturas de 
 vencimientos con casos en rojo (2 vehículos no aptos) y en ámbar, y 30 personas (20 conductores,
 5 mecánicos, 3 de tráfico y 2 de otros puestos) con su documentación, también con casos en rojo y ámbar, y 27 asignaciones
 conductor-vehículo con historial y un aviso de documentación caducada, y 9 planes preventivos
-con 2 vencidos (uno por km y otro por fecha) y 2 próximos, y 4 averías (una que inmoviliza). Usuarios `admin`, `trafico`, `taller` y `conductor` `@demo.example.com`
+con 2 vencidos (uno por km y otro por fecha) y 2 próximos, 4 averías (una que inmoviliza) y 6 meses de historial de órdenes de trabajo (preventivas y
+correctivas con costes), con una OT en curso que deja un vehículo en taller. Usuarios `admin`, `trafico`, `taller` y `conductor` `@demo.example.com`
 con la contraseña `demostracion`. Todo es inventado; los datos son siempre los mismos (semilla
 fija) y las fechas se calculan desde el día en que se ejecuta. El historial de mantenimiento se
 añadirá cuando existan sus tablas.
@@ -184,6 +185,11 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | GET | `/averias` | todos | Averías (abiertas por defecto; `abiertas=false`, `vehiculo_id`, `gravedad`) |
 | GET | `/averias/{id}` y `/averias/{id}/foto` | todos | Una avería y su foto (solo de la propia empresa) |
 | POST | `/averias/{id}/resolver` | admin, taller | Resolver con nota; recalcula el estado del vehículo |
+| GET | `/ordenes-trabajo` | todos | OT (filtros `abiertas`, `estado`, `tipo`, `vehiculo_id`), con líneas y coste |
+| POST | `/ordenes-trabajo` | admin, taller | Crear desde una avería (`averia_id`), desde un plan (`plan_id` + `vehiculo_id`) o a mano |
+| GET/PATCH | `/ordenes-trabajo/{id}` | todos / admin, taller | Ver o editar (descripción, inmoviliza, responsable) |
+| POST | `/ordenes-trabajo/{id}/iniciar`, `/cerrar`, `/cancelar` | admin, taller | Flujo abierta → en curso → cerrada (con `km` y `fecha`) o cancelada |
+| POST/DELETE | `/ordenes-trabajo/{id}/lineas` | admin, taller | Líneas de coste: mano de obra, recambio o externo |
 | GET | `/preventivos/prevision` | todos | Previsión (MAN-02): vencidos y lo que toca en 30 días o 2.000 km, por urgencia (filtros `centro_id`, `tipo_id`) |
 | POST | `/vehiculos/{id}/preventivos/{plan_id}/realizado` | admin, taller | Registrar que se hizo (fecha y km) y recalcular |
 
@@ -233,6 +239,14 @@ vehículo inmovilizado en la misma petición (el motor de estado lee ahora las a
 y la respuesta trae el estado nuevo. Las fotos (JPEG, PNG o WebP, máx. 5 MB) se validan por su
 firma de bytes, se guardan con nombre aleatorio en `CARPETA_ADJUNTOS` (por defecto `uploads/`,
 fuera de Git) y solo se sirven con sesión y a la propia empresa.
+
+**Órdenes de trabajo (MAN-04 a MAN-06):** desde una avería (que pasa a "en reparación" y, si
+inmovilizaba, la OT también inmoviliza), desde un plan (preventiva) o a mano. Flujo abierta → en
+curso → cerrada o cancelada (`app/reglas/ordenes.py`). Al cerrar se exigen km y fecha: los km se
+registran como lectura (validada con FLO-05), la avería queda resuelta y, si es preventiva, el plan
+recalcula el próximo. Cancelar devuelve la avería a "comunicada". Mientras una OT que inmoviliza
+está abierta, el vehículo está "en taller". Coste = suma de las líneas (cantidad × precio), con
+`Decimal` y redondeo a céntimos; la BD exige km y fecha en las OT cerradas.
 
 **Estado del vehículo (FLO-03, regla 1):** de baja si está inactivo; en taller si tiene una OT
 abierta que inmoviliza; inmovilizado si tiene una avería "inmoviliza" sin OT abierta; si no,

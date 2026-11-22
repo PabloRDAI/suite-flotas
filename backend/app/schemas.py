@@ -8,12 +8,14 @@
 
 import re
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, StringConstraints, model_validator
 
 from app.models import AplicaA, Combustible, EstadoVehiculo, Puesto, RolUsuario, TipoCentro, UnidadCapacidad
-from app.reglas.estado_vehiculo import EstadoAveria, GravedadAveria
+from app.reglas.estado_vehiculo import EstadoAveria, EstadoOT, GravedadAveria
+from app.reglas.ordenes import Concepto, OrigenOT, TipoOT
 from app.reglas.preventivo import Situacion
 from app.reglas.vencimientos import Semaforo
 
@@ -416,6 +418,106 @@ class VehiculoSugerido(BaseModel):
     marca: str
     modelo: str
     habitual: bool
+
+
+# --- Órdenes de trabajo (MAN-04, MAN-05, MAN-06) -----------------------------
+
+Cantidad = Annotated[Decimal, Field(gt=0, le=100_000, max_digits=10, decimal_places=2)]
+Precio = Annotated[Decimal, Field(ge=0, le=1_000_000, max_digits=10, decimal_places=2)]
+
+
+class OTCrear(EntradaEstricta):
+    """Crear una OT (MAN-04) de una de tres formas:
+    - desde una avería: averia_id (el vehículo sale de la avería; correctiva);
+    - desde un plan: plan_id + vehiculo_id (preventiva);
+    - a mano: vehiculo_id + tipo + descripcion.
+    """
+
+    vehiculo_id: int | None = None
+    averia_id: int | None = None
+    plan_id: int | None = None
+    tipo: TipoOT | None = None
+    descripcion: Annotated[Texto, Field(max_length=2000)] | None = None
+    inmoviliza: bool | None = None  # por defecto: según la avería; sí desde un plan; no a mano
+    responsable_id: int | None = None
+
+    @model_validator(mode="after")
+    def una_sola_forma(self) -> "OTCrear":
+        if self.averia_id is not None and self.plan_id is not None:
+            raise ValueError("Una OT se crea desde una avería o desde un plan, no desde ambos")
+        if self.averia_id is None and self.vehiculo_id is None:
+            raise ValueError("Indica el vehículo (o la avería de la que sale la OT)")
+        if self.averia_id is None and self.plan_id is None:
+            if self.tipo is None or self.descripcion is None:
+                raise ValueError("Una OT manual necesita tipo y descripción")
+        return self
+
+
+class OTEditar(EntradaEstricta):
+    descripcion: Annotated[Texto, Field(max_length=2000)] | None = None
+    inmoviliza: bool | None = None
+    responsable_id: int | None = None
+
+
+class OTCerrar(EntradaEstricta):
+    """MAN-05: al cerrar se exigen los km (y la fecha: sin ella, hoy)."""
+
+    km: Annotated[int, Field(ge=0, le=10_000_000)]
+    fecha: date | None = None
+    trabajo_realizado: Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)] | None = None
+
+
+class OTCancelar(EntradaEstricta):
+    motivo: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+
+
+class LineaCrear(EntradaEstricta):
+    concepto: Concepto
+    descripcion: Annotated[Texto, Field(max_length=200)]
+    cantidad: Cantidad  # horas (mano de obra) o unidades
+    precio_unitario: Precio  # tarifa por hora o precio por unidad
+
+
+class LineaSalida(BaseModel):
+    id: int
+    concepto: Concepto
+    descripcion: str
+    cantidad: float
+    precio_unitario: float
+    importe: float
+
+
+class CosteSalida(BaseModel):
+    mano_obra: float
+    recambios: float
+    externos: float
+    total: float
+
+
+class OTSalida(BaseModel):
+    id: int
+    vehiculo_id: int
+    matricula: str
+    tipo: TipoOT
+    origen: OrigenOT
+    estado: EstadoOT
+    plan_id: int | None
+    plan_nombre: str | None
+    averia_id: int | None
+    inmoviliza: bool
+    descripcion: str
+    responsable_id: int | None
+    responsable_nombre: str | None
+    abierta_en: datetime
+    iniciada_en: datetime | None
+    fecha_cierre: date | None
+    km_cierre: int | None
+    trabajo_realizado: str | None
+    cancelada_en: datetime | None
+    motivo_cancelacion: str | None
+    lineas: list[LineaSalida]
+    coste: CosteSalida  # MAN-06: suma de las líneas
+    estado_vehiculo: EstadoVehiculo
 
 
 class VehiculoPanel(BaseModel):

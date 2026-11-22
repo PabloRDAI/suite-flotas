@@ -180,8 +180,9 @@ def test_panel_de_la_empresa_demo(api: TestClient, db: Session) -> None:
     datos = panel(api, {"Authorization": f"Bearer {token['access_token']}"})
 
     assert datos["contadores"]["total"] == 25
-    assert datos["contadores"]["no_aptos"] == 3  # 2 por documentación + 1 inmovilizado por avería
+    assert datos["contadores"]["no_aptos"] == 4  # 2 por documentación + 1 inmovilizado + 1 en taller
     assert datos["contadores"]["inmovilizado"] == 1
+    assert datos["contadores"]["en_taller"] == 1
     por_tipo = Counter((a["tipo"], a["semaforo"]) for a in datos["alertas"])
     assert por_tipo == {
         ("vencimiento", "rojo"): 3, ("vencimiento", "ambar"): 3,  # documentación (FLO-06)

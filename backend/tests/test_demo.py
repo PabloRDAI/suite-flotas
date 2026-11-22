@@ -1,7 +1,7 @@
 """Tests de la empresa de demostración (GEN-04)."""
 
 from collections import Counter
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,9 +10,10 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 
-from app.models import Asignacion, Centro, Empresa, EstadoPlan, LecturaKm, Persona, RolUsuario, Usuario, Vehiculo
+from app.models import Asignacion, Averia, Centro, Empresa, EstadoPlan, LecturaKm, LineaOT, OrdenTrabajo, Persona, RolUsuario, Usuario, Vehiculo
 from app.reglas.asignaciones import AsignacionExistente, Periodo, comprobar_habitual
 from app.reglas.km import Lectura, comprobar_lectura
+from app.reglas.ordenes import Linea, coste
 from app.servicios.demo import (
     PASSWORD_DEMO,
     PLANES_DEMO,
@@ -22,6 +23,7 @@ from app.servicios.demo import (
     email_demo,
     planificar_asignaciones,
     planificar_demo,
+    planificar_ordenes,
     planificar_personal,
     planificar_preventivos,
 )
@@ -96,10 +98,10 @@ def test_km_actuales_son_los_de_la_ultima_lectura(db: Session) -> None:
 
 
 def test_hay_casos_para_enseñar_en_el_panel(db: Session) -> None:
-    """3 no aptos (ITV caducada, seguro caducado e inmovilizado por avería) y 3 en ámbar."""
+    """4 no aptos (ITV caducada, seguro caducado, inmovilizado por avería y en taller) y 3 en ámbar."""
     r = crear_empresa_demo(db, hoy=HOY)
 
-    assert len(r.no_aptos) == 3
+    assert len(r.no_aptos) == 4
     assert len(r.en_ambar) == 3
 
 
@@ -204,6 +206,43 @@ def test_crea_los_planes_con_casos_vencidos_y_proximos(db: Session) -> None:
     assert len(r.preventivos_proximos) == 2
     # Cada vehículo tiene el estado de todos los planes de su tipo.
     assert contar(db, EstadoPlan, r.empresa_id) == sum(len(PLANES_DEMO[v.tipo]) for v in planificar_demo(HOY))
+
+
+# --- Historial de mantenimiento (GEN-04, MAN-04 a MAN-06) ---------------------
+
+
+def test_hay_6_meses_de_ordenes_de_trabajo() -> None:
+    """GEN-04: "6 meses de historial de mantenimiento"."""
+    vehiculos = planificar_demo(HOY)
+    ordenes = planificar_ordenes(HOY, vehiculos, planificar_preventivos(HOY, vehiculos))
+    cerradas = [o for o in ordenes if o.cerrada]
+
+    assert {o.tipo for o in cerradas} == {"preventiva", "correctiva"}
+    assert min(o.cerrada for o in cerradas) >= HOY - timedelta(days=182)
+    assert (HOY - min(o.cerrada for o in cerradas)).days > 120  # repartidas a lo largo del periodo
+    assert all(o.lineas for o in ordenes)
+
+
+def test_el_coste_del_historial_es_la_suma_de_sus_lineas(db: Session) -> None:
+    """MAN-06 sobre los datos de la demo: el total del resumen cuadra con las líneas guardadas."""
+    r = crear_empresa_demo(db, hoy=HOY)
+
+    lineas = db.scalars(
+        select(LineaOT).join(OrdenTrabajo, OrdenTrabajo.id == LineaOT.ot_id)
+        .where(OrdenTrabajo.empresa_id == r.empresa_id, OrdenTrabajo.estado == "cerrada")
+    )
+    assert coste(Linea(l.concepto, l.cantidad, l.precio_unitario) for l in lineas).total == r.coste_mantenimiento > 0
+
+
+def test_ordenes_abiertas_de_la_demo(db: Session) -> None:
+    """Una en curso que inmoviliza (vehículo en taller) y la de la avería grave (en reparación)."""
+    r = crear_empresa_demo(db, hoy=HOY)
+
+    assert len(r.ordenes_abiertas) == 2
+    en_taller = db.scalar(select(func.count()).select_from(Vehiculo).where(Vehiculo.empresa_id == r.empresa_id, Vehiculo.estado == "en_taller"))
+    assert en_taller == 1
+    grave = db.scalar(select(Averia).where(Averia.empresa_id == r.empresa_id, Averia.gravedad == "grave"))
+    assert grave is not None and grave.estado == "en_reparacion"
 
 
 # --- Realismo de los datos ---------------------------------------------------
