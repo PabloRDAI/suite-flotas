@@ -1,0 +1,50 @@
+# Demo completa en local con UN solo comando (solo hace falta Docker):
+#
+#   docker compose -f docker-compose.demo.yml up -d --build
+#
+# Después, abrir http://localhost:8080 y entrar con admin@demo.example.com / demostracion
+# (también trafico@, taller@ y conductor@demo.example.com, con la misma contraseña).
+#
+# Parar:            docker compose -f docker-compose.demo.yml down
+# Borrar sus datos: docker compose -f docker-compose.demo.yml down -v
+#
+# Tiene su propia base de datos y sus volúmenes: no toca la de desarrollo (docker-compose.yml).
+
+# Nombre de proyecto propio: sin él, Docker usaría el de la carpeta (el mismo que el de
+# desarrollo) y confundiría los dos servicios "db".
+name: suite-flotas-demo
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: suite
+      # Base de datos interna de la demo: no se publica fuera de Docker y solo tiene datos ficticios.
+      POSTGRES_PASSWORD: suite_demo
+      POSTGRES_DB: suite_flotas
+      TZ: Europe/Madrid
+    volumes:
+      - pgdata-demo:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U suite -d suite_flotas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    image: suite-flotas
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://suite:suite_demo@db:5432/suite_flotas
+      TZ: Europe/Madrid
+    ports:
+      - "8080:8000"
+    volumes:
+      - uploads-demo:/app/uploads  # fotos de las averías
+
+volumes:
+  pgdata-demo:
+  uploads-demo:

@@ -4,6 +4,7 @@ Uso (con el entorno virtual activado, desde backend/):
 
     python -m app.scripts.demo              # la crea (error si ya existe)
     python -m app.scripts.demo --reiniciar  # la borra y la vuelve a crear
+    python -m app.scripts.demo --si-no-existe  # la crea solo si no existe (arranque con Docker)
 
 Solo toca la empresa demo (usuarios @demo.example.com); nunca otras empresas.
 """
@@ -17,7 +18,9 @@ from app.servicios.demo import NOMBRE_EMPRESA, PASSWORD_DEMO, DemoYaExiste, crea
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Crea la empresa de demostración con datos ficticios.")
-    parser.add_argument("--reiniciar", action="store_true", help="Borra la empresa demo y la vuelve a crear")
+    opcion = parser.add_mutually_exclusive_group()
+    opcion.add_argument("--reiniciar", action="store_true", help="Borra la empresa demo y la vuelve a crear")
+    opcion.add_argument("--si-no-existe", action="store_true", help="Si ya existe, no hace nada (y no es un error)")
     parser.add_argument(
         "--password", default=PASSWORD_DEMO, help=f"Contraseña de los usuarios demo (por defecto: {PASSWORD_DEMO})"
     )
@@ -30,6 +33,9 @@ def main() -> int:
         try:
             r = crear_empresa_demo(db, password=args.password, reiniciar=args.reiniciar)
         except DemoYaExiste as error:
+            if args.si_no_existe:
+                print("La empresa demo ya existe: no se toca.")
+                return 0
             print(f"Error: {error}", file=sys.stderr)
             return 1
         db.commit()

@@ -10,6 +10,7 @@ backend/
 │   ├── config.py      Configuración leída del .env (DATABASE_URL, JWT_SECRETO…)
 │   ├── db.py          Conexión a PostgreSQL: engine, sesiones, Base y convención de nombres
 │   ├── main.py        Aplicación FastAPI: registra los routers
+│   ├── servidor.py    Para Docker: la API bajo /api y la web compilada en el resto (un solo proceso)
 │   ├── seguridad.py   Hash de contraseñas (Argon2) y tokens de sesión (JWT)
 │   ├── deps.py        Dependencias: usuario actual (401) y control de roles (403)
 │   ├── schemas.py     Esquemas Pydantic: lo que entra y sale por la API
@@ -105,6 +106,7 @@ Revisa siempre a mano las migraciones generadas con `--autogenerate` antes de ap
 ```powershell
 python -m app.scripts.demo              # crea "Transportes Demo (ficticia)"
 python -m app.scripts.demo --reiniciar  # la borra y la vuelve a crear (solo la demo)
+python -m app.scripts.demo --si-no-existe  # la crea solo si falta (lo usa el arranque de Docker)
 ```
 
 Crea 2 centros, 5 tipos de vehículo, 25 vehículos con ~6 meses de lecturas de km semanales

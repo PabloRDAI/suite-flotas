@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # Tamaño máximo de una foto (MB).
     max_foto_mb: int = 5
 
+    # Carpeta con el frontend ya compilado (npm run build). Solo la usa app/servidor.py, el
+    # servidor de la imagen Docker; en desarrollo la web la sirve Vite.
+    carpeta_web: Path = RAIZ_REPO / "frontend" / "dist"
+
     nombre_app: str = "Suite Flotas API"
 
 

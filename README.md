@@ -27,6 +27,24 @@ Datos de la empresa de demostración (todo ficticio).
 
 ![Ficha de vehículo](docs/capturas/ficha-vehiculo.png)
 
+**Taller:** tablero de órdenes de trabajo por estado, con su coste.
+
+![Tablero de taller](docs/capturas/taller-tablero.png)
+
+**Orden de trabajo:** líneas de mano de obra, recambios (del catálogo, con su precio por defecto) y
+trabajos externos. Mientras está abierta y el vehículo está inmovilizado, el vehículo figura "en taller".
+
+![Orden de trabajo](docs/capturas/orden-trabajo.png)
+
+**Indicadores de mantenimiento (últimos 6 meses):** coste por vehículo y por km, averías, días de
+inmovilización y reparto entre preventivo y correctivo. Cada tabla se puede exportar a Excel.
+
+![Indicadores de mantenimiento](docs/capturas/indicadores-mantenimiento.png)
+
+**Importar desde Excel:** todo o nada; si alguna fila tiene errores, se listan con su motivo y no se crea ningún registro.
+
+![Importación con errores](docs/capturas/importar-errores.png)
+
 ## Stack
 
 | Parte | Tecnología |
@@ -45,9 +63,29 @@ suite-flotas/
 ├── docs/               Especificación, decisiones (ADR) y capturas
 ├── .github/workflows/  Integración continua (GitHub Actions)
 ├── docker-compose.yml  PostgreSQL para desarrollo
+├── docker-compose.demo.yml  Demo completa (BD + aplicación) con un solo comando
+├── Dockerfile          Imagen de la aplicación: API + web compilada
+├── docker/             Script de arranque del contenedor
 ├── .env.example        Variables de entorno de ejemplo
 └── LICENSE             Licencia MIT
 ```
+
+## Probar la demo (un solo comando)
+
+Solo hace falta [Docker Desktop](https://www.docker.com/products/docker-desktop/):
+
+```bash
+git clone https://github.com/PabloRDAI/suite-flotas.git
+cd suite-flotas
+docker compose -f docker-compose.demo.yml up -d --build
+```
+
+La primera vez tarda unos minutos (compila la web e instala las dependencias). Después, abre
+**http://localhost:8080** y entra con `admin@demo.example.com` / `demostracion` (también `trafico@`,
+`taller@` y `conductor@demo.example.com`, con la misma contraseña: cada rol ve la aplicación a su manera).
+
+Al arrancar se crean la base de datos y la empresa de demostración (todo ficticio). Para pararla:
+`docker compose -f docker-compose.demo.yml down` (con `-v` se borran también sus datos).
 
 ## Puesta en marcha (desarrollo)
 
@@ -78,7 +116,8 @@ python -m app.scripts.demo     # usuarios admin|trafico|taller|conductor@demo.ex
 ## Integración continua
 
 En cada `push` a `main`, GitHub Actions ([`ci.yml`](.github/workflows/ci.yml)) ejecuta los tests del
-backend contra un PostgreSQL temporal, y el linter y la compilación del frontend.
+backend contra un PostgreSQL temporal, el linter y la compilación del frontend, y construye la imagen
+Docker y arranca la demo completa para comprobar que la web, la API y el login responden.
 
 ## Plan de entrega
 

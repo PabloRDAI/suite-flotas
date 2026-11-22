@@ -1,7 +1,13 @@
 # ADR 0002: Despliegue de la demo pública
 
-- **Estado:** aceptada
+- **Estado:** aceptada, pendiente de aplicar
 - **Fecha:** 2026-11-22
+
+> **Situación actual:** de momento la aplicación no se publica; se usa en local. La imagen Docker de
+> los puntos 1 y 2 ya existe (`Dockerfile`, `backend/app/servidor.py`, `docker/arranque.sh`) y se usa
+> para la demo local (`docker-compose.demo.yml`), que la integración continua construye y arranca en
+> cada cambio. Quedan para cuando se despliegue: crear los servicios en Render y Neon, la variable que
+> desactiva las fotos (punto 3) y la tarea de reinicio diario (punto 4).
 
 ## Contexto
 

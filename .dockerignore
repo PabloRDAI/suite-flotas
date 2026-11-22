@@ -1,0 +1,16 @@
+# Lo que NO se envía a Docker al construir la imagen: más rápido y sin secretos ni basura.
+.git
+.github
+.env
+.env.*
+**/__pycache__
+**/*.pyc
+backend/.venv
+backend/*.egg-info
+backend/.pytest_cache
+backend/.coverage
+backend/tests
+frontend/node_modules
+frontend/dist
+uploads
+docs

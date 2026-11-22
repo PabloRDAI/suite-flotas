@@ -93,3 +93,31 @@ jobs:
 
       - name: Compilar (incluye la comprobación de tipos de TypeScript)
         run: npm run build
+
+  docker:
+    name: Docker (demo completa)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v5
+
+      - name: Construir la imagen y arrancar la demo (BD vacía -> migraciones -> datos de demo)
+        run: docker compose -f docker-compose.demo.yml up -d --build --wait
+
+      - name: Comprobar web, rutas de React, API y login
+        run: |
+          curl -fsS http://localhost:8080/ | grep -q "<title>Suite Flotas</title>"
+          curl -fsS -o /dev/null http://localhost:8080/vehiculos/3
+          curl -fsS http://localhost:8080/api/salud
+          curl -fsS -X POST http://localhost:8080/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"admin@demo.example.com","password":"demostracion"}' | grep -q access_token
+
+      - name: Registro del contenedor (si algo falla)
+        if: failure()
+        run: docker compose -f docker-compose.demo.yml logs app
+
+      - name: Parar
+        if: always()
+        run: docker compose -f docker-compose.demo.yml down -v
