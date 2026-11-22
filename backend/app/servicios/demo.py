@@ -37,6 +37,7 @@ from app.models import (
     Persona,
     PlanMantenimiento,
     Puesto,
+    Recambio,
     RolUsuario,
     TareaPlan,
     TipoCentro,
@@ -213,6 +214,33 @@ CORRECTIVAS_DEMO = [
     ("Batería descargada", 0.5, 1, [("Batería 12 V", "130", "220")]),
     ("Sensor de temperatura defectuoso", 1, 2, [("Sensor de temperatura", "35", "70")]),
 ]
+# Catálogo de recambios (MAN-09): (referencia, nombre, precio de catálogo). Los nombres coinciden
+# con los recambios de las OT de la demo, que quedan enlazados al catálogo. El precio de cada OT
+# varía alrededor del de catálogo (como en la realidad: cambian proveedor, ofertas…).
+CATALOGO_DEMO = [
+    ("ACE-1040-L", "Aceite de motor (litros)", "3.65"),
+    ("FIL-ACE-210", "Filtro de aceite", "20.00"),
+    ("FIL-AIR-330", "Filtro de aire", "35.00"),
+    ("FIL-COM-115", "Filtro de combustible", "28.50"),
+    ("FRE-PAS-JG4", "Juego de pastillas", "71.50"),
+    ("FRE-LIQ-DOT4", "Líquido de frenos (litros)", "11.50"),
+    ("CLI-KIT-REV", "Kit de revisión de climatización", "47.50"),
+    ("CIS-JUN-VAL", "Juntas y precintos de válvulas", "65.00"),
+    ("FRE-DIS-DEL", "Discos de freno", "220.00"),
+    ("FRE-PAS-DEL", "Pastillas", "85.00"),
+    ("REF-MAN-50", "Manguito de refrigeración", "42.50"),
+    ("REF-ANT-5L", "Anticongelante", "27.50"),
+    ("ELE-ALT-RCN", "Alternador reconstruido", "330.00"),
+    ("CAR-EVP-PS", "Electroválvula de puerta", "125.00"),
+    ("NEU-315-80", "Neumático", "275.00"),
+    ("ILU-GOT-TR", "Grupo óptico trasero", "70.00"),
+    ("SUS-AMO-TR", "Amortiguador", "165.00"),
+    ("CLI-COMP-GAS", "Recarga de gas y compresor", "285.00"),
+    ("ELE-BAT-12V", "Batería 12 V", "175.00"),
+    ("MOT-SEN-TMP", "Sensor de temperatura", "52.50"),
+    ("TRA-EMB-KIT", "Kit de embrague", "485.00"),
+]
+
 # Abiertas en este momento: nº de vehículo -> (descripción, ¿en curso?, ¿inmoviliza?)
 OT_EN_CURSO_DEMO = (14, "Sustitución del kit de embrague", True)
 
@@ -496,6 +524,7 @@ class ResumenDemo:
     preventivos_vencidos: list[str] = field(default_factory=list)  # "matrícula: plan (motivo)"
     preventivos_proximos: list[str] = field(default_factory=list)
     ordenes: int = 0
+    recambios: int = 0  # en el catálogo
     ordenes_abiertas: list[str] = field(default_factory=list)  # "matrícula: descripción (estado)"
     coste_mantenimiento: Decimal = Decimal("0.00")  # suma de las OT cerradas
     personas_en_rojo: list[str] = field(default_factory=list)  # nombres con documentación caducada
@@ -524,7 +553,7 @@ def borrar_empresa(db: Session, empresa_id: int) -> None:
         borrar_foto(foto)
     # Asignacion y Vencimiento antes que Vehiculo y Persona; Persona antes que Usuario (lo referencia).
     for modelo in (
-        LineaOT, OrdenTrabajo, Averia, Asignacion, Vencimiento, EstadoPlan, LecturaKm, Vehiculo, Persona,
+        LineaOT, Recambio, OrdenTrabajo, Averia, Asignacion, Vencimiento, EstadoPlan, LecturaKm, Vehiculo, Persona,
         TareaPlan, PlanMantenimiento, TipoVencimiento, TipoVehiculo, Centro, Usuario,
     ):
         db.execute(delete(modelo).where(modelo.empresa_id == empresa_id))
@@ -711,6 +740,12 @@ def crear_empresa_demo(
         db.flush()
         actualizar_estado(db, vehiculo)
 
+    # Catálogo de recambios (MAN-09), antes de las OT para enlazar sus líneas.
+    catalogo = [Recambio(empresa_id=eid, referencia=r, nombre=n, precio=Decimal(p)) for r, n, p in CATALOGO_DEMO]
+    db.add_all(catalogo)
+    db.flush()
+    recambio_por_nombre = {r.nombre: r.id for r in catalogo}
+
     # Órdenes de trabajo (MAN-04 a MAN-06): 6 meses de historial y las abiertas ahora.
     taller_demo = next(u for u in usuarios if u.rol == RolUsuario.TALLER)
     plan_ordenes = planificar_ordenes(hoy, plan_vehiculos, planificar_preventivos(hoy, plan_vehiculos))
@@ -729,7 +764,8 @@ def crear_empresa_demo(
         )
         db.add(ot)
         db.flush()
-        db.add_all(LineaOT(empresa_id=eid, ot_id=ot.id, concepto=c, descripcion=d, cantidad=q, precio_unitario=pr)
+        db.add_all(LineaOT(empresa_id=eid, ot_id=ot.id, concepto=c, descripcion=d, cantidad=q, precio_unitario=pr,
+                           recambio_id=recambio_por_nombre.get(d) if c == Concepto.RECAMBIO else None)
                    for c, d, q, pr in o.lineas)
         if o.cerrada:
             coste_mantenimiento += coste(Linea(c, q, pr) for c, _, q, pr in o.lineas).total
@@ -776,6 +812,7 @@ def crear_empresa_demo(
         preventivos_vencidos=preventivos_vencidos,
         preventivos_proximos=preventivos_proximos,
         ordenes=len(plan_ordenes) + (1 if grave is not None else 0),
+        recambios=len(catalogo),
         ordenes_abiertas=ordenes_abiertas,
         coste_mantenimiento=coste_mantenimiento,
     )

@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 
 from app.deps import Db, GestionTaller, UsuarioActual
-from app.models import Averia, EstadoPlan, LecturaKm, LineaOT, OrdenTrabajo, Persona, PlanMantenimiento, Vehiculo
+from app.models import Averia, EstadoPlan, LecturaKm, LineaOT, OrdenTrabajo, Persona, PlanMantenimiento, Recambio, Vehiculo
 from app.reglas.estado_vehiculo import ESTADOS_OT_ABIERTA, EstadoAveria, EstadoOT, GravedadAveria
 from app.reglas.km import Lectura, LecturaNoValida, comprobar_lectura, km_actuales
 from app.reglas.ordenes import OrigenOT, TipoOT, TransicionNoValida, comprobar_transicion, editable
@@ -376,7 +376,21 @@ def anadir_linea(ot_id: int, datos: LineaCrear, usuario: GestionTaller, db: Db) 
     ot = _ot_de_mi_empresa(db, usuario.empresa_id, ot_id)
     if not editable(ot.estado):
         raise HTTPException(status.HTTP_409_CONFLICT, "Una OT cerrada o cancelada no se modifica")
-    db.add(LineaOT(empresa_id=usuario.empresa_id, ot_id=ot.id, **datos.model_dump()))
+    linea = datos.model_dump()
+    if datos.recambio_id is not None:
+        # MAN-09: lo que no se envía se rellena con el catálogo (el precio se COPIA a la línea).
+        recambio = db.scalar(
+            select(Recambio).where(
+                Recambio.id == datos.recambio_id, Recambio.empresa_id == usuario.empresa_id, Recambio.activo
+            )
+        )
+        if recambio is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "El recambio indicado no existe en el catálogo")
+        if linea["descripcion"] is None:
+            linea["descripcion"] = f"{recambio.nombre} ({recambio.referencia})"
+        if linea["precio_unitario"] is None:
+            linea["precio_unitario"] = recambio.precio
+    db.add(LineaOT(empresa_id=usuario.empresa_id, ot_id=ot.id, **linea))
     db.commit()
     return _una(db, usuario.empresa_id, ot.id)
 

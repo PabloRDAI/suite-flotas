@@ -44,6 +44,7 @@ def main() -> int:
     print(f"  {r.planes} planes preventivos. Vencidos: {'; '.join(r.preventivos_vencidos) or 'ninguno'}")
     print(f"  Preventivos próximos: {'; '.join(r.preventivos_proximos) or 'ninguno'}")
     print(f"  {r.ordenes} órdenes de trabajo; coste de las cerradas: {r.coste_mantenimiento} €")
+    print(f"  {r.recambios} recambios en el catálogo")
     print(f"  Abiertas ahora: {'; '.join(r.ordenes_abiertas) or 'ninguna'}")
     print(f"Usuarios (contraseña: {args.password}):")
     for email in r.usuarios:

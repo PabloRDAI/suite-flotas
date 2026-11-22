@@ -23,7 +23,7 @@ frontend/src/
 │                       HistorialAsignaciones, AsignarConductor, BotonRealizado, BotonCrearOTPlan
 │                       e IndicadoresMantenimiento (cifras, barra de reparto y tabla de costes)
 ├── pantallas/          Inicio (según el rol), Login, Panel, Vehiculos, FichaVehiculo, Personal, FichaPersona,
-│                       Taller, OrdenTrabajo, Averias, ComunicarAveria, EstadoSistema
+│                       Taller, OrdenTrabajo, Recambios, Averias, ComunicarAveria, EstadoSistema
 └── util/formato.ts     Fechas, km y números en español
 ```
 
@@ -39,7 +39,8 @@ frontend/src/
 | `/personal` | Listado del personal con semáforo de documentación y filtros por puesto, centro y documentación |
 | `/personal/:id` | Ficha: aviso de documentación y pestañas de datos, documentación y vehículos asignados |
 | `/taller` | Tablero de OT por estado (abiertas, en curso, cerradas en 30 días) con "Nueva OT", y previsión de preventivos con "Crear OT" y "Registrar realizado" |
-| `/ordenes-trabajo/:id` | Orden de trabajo: datos, acciones según el estado (iniciar, cerrar con km y fecha, cancelar) y líneas de coste |
+| `/ordenes-trabajo/:id` | Orden de trabajo: datos, acciones según el estado (iniciar, cerrar con km y fecha, cancelar) y líneas de coste; al elegir un recambio del catálogo se rellenan su descripción y su precio |
+| `/recambios` | Catálogo de recambios con búsqueda; alta, edición y baja para gerente y taller (MAN-09) |
 | `/averias/nueva` | Comunicar avería, pensada para el móvil: vehículo preseleccionado, gravedad con botones grandes, foto con la cámara |
 | `/averias` | Averías abiertas o todas, con foto, "Crear OT" / "Ver OT" y "Resolver sin OT" (gerente y taller) |
 | `/sistema` | Estado de la API y la base de datos |

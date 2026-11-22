@@ -63,6 +63,7 @@ def salidas(db: Session, consulta: Select) -> list[OTSalida]:  # type: ignore[ty
                     LineaSalida(
                         id=l.id,
                         concepto=l.concepto,
+                        recambio_id=l.recambio_id,
                         descripcion=l.descripcion,
                         cantidad=float(l.cantidad),
                         precio_unitario=float(l.precio_unitario),

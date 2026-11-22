@@ -27,7 +27,7 @@ import { IconArrowLeft, IconHandStop, IconPlayerPlay, IconTrash } from '@tabler/
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
 import { ErrorApi } from '../api/cliente.ts'
-import { useAccionOT, useAnadirLinea, useBorrarLinea, useOrden, useVehiculo } from '../api/consultas.ts'
+import { useAccionOT, useAnadirLinea, useBorrarLinea, useOrden, useRecambios, useVehiculo } from '../api/consultas.ts'
 import type { Concepto, OrdenTrabajo as OT } from '../api/tipos.ts'
 import { useSesion } from '../auth/contexto.ts'
 import { puedeGestionarTaller } from '../auth/permisos.ts'
@@ -295,17 +295,36 @@ function NuevaLinea({ otId }: { otId: number }) {
   const [descripcion, setDescripcion] = useState('')
   const [cantidad, setCantidad] = useState<number | string>(1)
   const [precio, setPrecio] = useState<number | string>('')
+  const [recambioId, setRecambioId] = useState<string | null>(null)
   const etiquetas = CONCEPTOS.find((c) => c.value === concepto)!
+  const recambios = useRecambios()
+
+  // MAN-09: al elegir un recambio del catálogo se rellenan la descripción y su precio por defecto
+  // (se pueden cambiar antes de añadir la línea).
+  const elegirRecambio = (id: string | null) => {
+    setRecambioId(id)
+    const recambio = recambios.data?.find((r) => String(r.id) === id)
+    if (recambio) {
+      setDescripcion(`${recambio.nombre} (${recambio.referencia})`)
+      setPrecio(recambio.precio)
+    }
+  }
+
+  const cambiarConcepto = (valor: Concepto) => {
+    setConcepto(valor)
+    if (valor !== 'recambio') setRecambioId(null) // el catálogo solo vale para recambios
+  }
 
   const enviar = (evento: FormEvent) => {
     evento.preventDefault()
     anadir.mutate(
-      { concepto, descripcion, cantidad: Number(cantidad), precio_unitario: Number(precio) },
+      { concepto, recambio_id: recambioId ? Number(recambioId) : null, descripcion, cantidad: Number(cantidad), precio_unitario: Number(precio) },
       {
         onSuccess: () => {
           setDescripcion('')
           setCantidad(1)
           setPrecio('')
+          setRecambioId(null)
         },
       },
     )
@@ -314,7 +333,20 @@ function NuevaLinea({ otId }: { otId: number }) {
   return (
     <form onSubmit={enviar}>
       <Group align="end" gap="sm" p="md">
-        <Select label="Concepto" data={CONCEPTOS} value={concepto} onChange={(v) => setConcepto((v ?? 'mano_obra') as Concepto)} allowDeselect={false} w={150} />
+        <Select label="Concepto" data={CONCEPTOS} value={concepto} onChange={(v) => cambiarConcepto((v ?? 'mano_obra') as Concepto)} allowDeselect={false} w={150} />
+        {concepto === 'recambio' && (
+          <Select
+            label="Del catálogo"
+            placeholder="Buscar referencia o nombre"
+            searchable
+            clearable
+            nothingFoundMessage="No está en el catálogo"
+            data={recambios.data?.map((r) => ({ value: String(r.id), label: `${r.referencia} · ${r.nombre} · ${formatoEuros(r.precio)}` })) ?? []}
+            value={recambioId}
+            onChange={elegirRecambio}
+            w={{ base: '100%', sm: 300 }}
+          />
+        )}
         <TextInput label="Descripción" required maxLength={200} value={descripcion} onChange={(e) => setDescripcion(e.currentTarget.value)} style={{ flex: 1, minWidth: 180 }} />
         <NumberInput label={etiquetas.cantidad} required min={0.01} decimalScale={2} decimalSeparator="," value={cantidad} onChange={setCantidad} w={110} />
         <NumberInput label={etiquetas.precio} required min={0} decimalScale={2} decimalSeparator="," value={precio} onChange={setPrecio} w={160} />

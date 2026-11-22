@@ -19,6 +19,7 @@ from app.routers import (
     panel,
     personas,
     planes,
+    recambios,
     tipos_vehiculo,
     tipos_vencimiento,
     vehiculos,
@@ -41,6 +42,7 @@ app.include_router(planes.router)
 app.include_router(averias.router)
 app.include_router(ordenes_trabajo.router)
 app.include_router(ordenes_trabajo.router_historial)
+app.include_router(recambios.router)
 
 
 @app.get("/salud", tags=["sistema"])

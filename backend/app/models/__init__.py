@@ -12,6 +12,7 @@ from app.models.lectura_km import LecturaKm
 from app.models.mantenimiento import EstadoPlan, PlanMantenimiento, TareaPlan
 from app.models.orden_trabajo import LineaOT, OrdenTrabajo
 from app.models.persona import Persona, Puesto
+from app.models.recambio import Recambio
 from app.models.usuario import RolUsuario, Usuario
 from app.models.vencimiento import AplicaA, TipoVencimiento, Vencimiento
 from app.models.vehiculo import Combustible, EstadoVehiculo, TipoVehiculo, UnidadCapacidad, Vehiculo
@@ -31,6 +32,7 @@ __all__ = [
     "Persona",
     "PlanMantenimiento",
     "Puesto",
+    "Recambio",
     "RolUsuario",
     "TareaPlan",
     "TipoCentro",

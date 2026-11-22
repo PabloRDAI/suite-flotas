@@ -9,6 +9,7 @@ import {
   IconHeartbeat,
   IconLayoutDashboard,
   IconLogout,
+  IconPackage,
   IconTool,
   IconTruck,
   IconUsers,
@@ -23,6 +24,7 @@ const MENU = [
   { a: '/vehiculos', texto: 'Vehículos', Icono: IconTruck },
   { a: '/personal', texto: 'Personal', Icono: IconUsers },
   { a: '/taller', texto: 'Taller', Icono: IconTool },
+  { a: '/recambios', texto: 'Recambios', Icono: IconPackage },
   // exacto: que no se marque también al estar en /averias/nueva (otra opción del menú).
   { a: '/averias', texto: 'Averías', Icono: IconCarCrash, exacto: true },
   { a: '/sistema', texto: 'Estado del sistema', Icono: IconHeartbeat },

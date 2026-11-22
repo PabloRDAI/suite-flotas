@@ -428,6 +428,43 @@ Cantidad = Annotated[Decimal, Field(gt=0, le=100_000, max_digits=10, decimal_pla
 Precio = Annotated[Decimal, Field(ge=0, le=1_000_000, max_digits=10, decimal_places=2)]
 
 
+# --- Catálogo de recambios (MAN-09) ------------------------------------------
+
+# La referencia se guarda sin espacios a los lados y en mayúsculas: "fa-123" y "FA-123" son la misma.
+Referencia = Annotated[str, StringConstraints(strip_whitespace=True, to_upper=True, min_length=1, max_length=40)]
+
+
+class RecambioCrear(EntradaEstricta):
+    referencia: Referencia
+    nombre: Annotated[Texto, Field(max_length=150)]
+    precio: Precio
+
+
+class RecambioEditar(EntradaEstricta):
+    """Edición parcial. Cambiar el precio NO altera las OT ya registradas."""
+
+    referencia: Referencia | None = None
+    nombre: Annotated[Texto, Field(max_length=150)] | None = None
+    precio: Precio | None = None
+
+    @model_validator(mode="after")
+    def no_vaciar(self) -> "RecambioEditar":
+        vaciados = [c for c in self.model_fields_set if getattr(self, c) is None]
+        if vaciados:
+            raise ValueError(f"Estos campos no pueden quedar vacíos: {', '.join(sorted(vaciados))}")
+        return self
+
+
+class RecambioSalida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    referencia: str
+    nombre: str
+    precio: float
+    activo: bool
+
+
 class OTCrear(EntradaEstricta):
     """Crear una OT (MAN-04) de una de tres formas:
     - desde una avería: averia_id (el vehículo sale de la avería; correctiva);
@@ -474,15 +511,35 @@ class OTCancelar(EntradaEstricta):
 
 
 class LineaCrear(EntradaEstricta):
+    """Una línea de coste de la OT.
+
+    MAN-09: con recambio_id (un recambio del catálogo), la descripción y el precio son
+    opcionales: si no se envían, se rellenan con los del catálogo. Si se envían, mandan
+    (p. ej. un precio distinto en esta compra).
+    """
+
     concepto: Concepto
-    descripcion: Annotated[Texto, Field(max_length=200)]
+    recambio_id: int | None = None
+    descripcion: Annotated[Texto, Field(max_length=200)] | None = None
     cantidad: Cantidad  # horas (mano de obra) o unidades
-    precio_unitario: Precio  # tarifa por hora o precio por unidad
+    precio_unitario: Precio | None = None  # tarifa por hora o precio por unidad
+
+    @model_validator(mode="after")
+    def completa(self) -> "LineaCrear":
+        if self.recambio_id is not None:
+            if self.concepto != Concepto.RECAMBIO:
+                raise ValueError("Solo una línea de recambio puede llevar un recambio del catálogo")
+            return self
+        faltan = [c for c in ("descripcion", "precio_unitario") if getattr(self, c) is None]
+        if faltan:
+            raise ValueError(f"Sin recambio del catálogo hay que indicar: {', '.join(faltan)}")
+        return self
 
 
 class LineaSalida(BaseModel):
     id: int
     concepto: Concepto
+    recambio_id: int | None = None
     descripcion: str
     cantidad: float
     precio_unitario: float

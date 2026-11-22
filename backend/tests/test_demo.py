@@ -10,11 +10,12 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 
-from app.models import Asignacion, Averia, Centro, Empresa, EstadoPlan, LecturaKm, LineaOT, OrdenTrabajo, Persona, RolUsuario, Usuario, Vehiculo
+from app.models import Asignacion, Averia, Centro, Empresa, EstadoPlan, LecturaKm, LineaOT, OrdenTrabajo, Persona, Recambio, RolUsuario, Usuario, Vehiculo
 from app.reglas.asignaciones import AsignacionExistente, Periodo, comprobar_habitual
 from app.reglas.km import Lectura, comprobar_lectura
 from app.reglas.ordenes import Linea, coste
 from app.servicios.demo import (
+    CATALOGO_DEMO,
     PASSWORD_DEMO,
     PLANES_DEMO,
     TIPOS_VEHICULO,
@@ -232,6 +233,18 @@ def test_el_coste_del_historial_es_la_suma_de_sus_lineas(db: Session) -> None:
         .where(OrdenTrabajo.empresa_id == r.empresa_id, OrdenTrabajo.estado == "cerrada")
     )
     assert coste(Linea(l.concepto, l.cantidad, l.precio_unitario) for l in lineas).total == r.coste_mantenimiento > 0
+
+
+def test_las_lineas_de_recambio_de_la_demo_estan_en_el_catalogo(db: Session) -> None:
+    """MAN-09 en la demo: cada recambio usado en una OT es del catálogo, y viceversa."""
+    r = crear_empresa_demo(db, hoy=HOY)
+
+    assert r.recambios == len(CATALOGO_DEMO) == len({ref for ref, _, _ in CATALOGO_DEMO})
+    lineas = list(db.scalars(select(LineaOT).where(LineaOT.empresa_id == r.empresa_id, LineaOT.concepto == "recambio")))
+    assert lineas and all(l.recambio_id is not None for l in lineas)
+    usados = {l.recambio_id for l in lineas}
+    catalogo = set(db.scalars(select(Recambio.id).where(Recambio.empresa_id == r.empresa_id)))
+    assert usados == catalogo  # ningún recambio del catálogo sobra
 
 
 def test_ordenes_abiertas_de_la_demo(db: Session) -> None:

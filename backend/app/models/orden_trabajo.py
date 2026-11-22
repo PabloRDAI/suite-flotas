@@ -88,12 +88,22 @@ class LineaOT(DeEmpresa, Base):
             name="fk_linea_ot_ot_misma_empresa",
             ondelete="CASCADE",
         ),
+        # MAN-09: el recambio del catálogo, de la misma empresa (si recambio_id es NULL no se comprueba).
+        ForeignKeyConstraint(
+            ["empresa_id", "recambio_id"],
+            ["recambio.empresa_id", "recambio.id"],
+            name="fk_linea_ot_recambio_misma_empresa",
+        ),
         CheckConstraint("cantidad > 0", name="cantidad_positiva"),
         CheckConstraint("precio_unitario >= 0", name="precio_no_negativo"),
+        # Solo una línea de recambio puede enlazar un recambio del catálogo.
+        CheckConstraint("recambio_id IS NULL OR concepto = 'recambio'", name="recambio_solo_en_lineas_de_recambio"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     ot_id: Mapped[int] = mapped_column(index=True)
+    # MAN-09: recambio del catálogo (opcional: también se pueden anotar recambios sueltos).
+    recambio_id: Mapped[int | None] = mapped_column(index=True)
     concepto: Mapped[Concepto] = mapped_column(enum_texto(Concepto, "concepto_linea"))
     descripcion: Mapped[str] = mapped_column(String(200))
     # Numeric (decimal exacto) y no float: es dinero.

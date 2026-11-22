@@ -23,6 +23,7 @@ import type {
   Persona,
   PrevisionItem,
   Preventivo,
+  Recambio,
   TipoVehiculo,
   Usuario,
   Vehiculo,
@@ -357,7 +358,7 @@ export function useAccionOT(otId: number) {
 export function useAnadirLinea(otId: number) {
   const refrescar = useRefrescarTrasOT()
   return useMutation({
-    mutationFn: (linea: { concepto: Concepto; descripcion: string; cantidad: number; precio_unitario: number }) =>
+    mutationFn: (linea: { concepto: Concepto; recambio_id?: number | null; descripcion: string; cantidad: number; precio_unitario: number }) =>
       api<OrdenTrabajo>(`/ordenes-trabajo/${otId}/lineas`, { metodo: 'POST', cuerpo: linea }),
     onSuccess: refrescar,
   })
@@ -368,5 +369,35 @@ export function useBorrarLinea(otId: number) {
   return useMutation({
     mutationFn: (lineaId: number) => api<void>(`/ordenes-trabajo/${otId}/lineas/${lineaId}`, { metodo: 'DELETE' }),
     onSuccess: refrescar,
+  })
+}
+
+// --- Catálogo de recambios (MAN-09) ------------------------------------------
+
+export const useRecambios = (incluirBajas = false) =>
+  useQuery({
+    queryKey: ['recambios', { incluirBajas }],
+    queryFn: () => api<Recambio[]>(`/recambios${incluirBajas ? '?incluir_bajas=true' : ''}`),
+  })
+
+type DatosRecambio = { referencia: string; nombre: string; precio: number }
+
+/** Alta (sin id) o edición (con id) de un recambio. */
+export function useGuardarRecambio() {
+  const cliente = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...datos }: DatosRecambio & { id?: number }) =>
+      id === undefined
+        ? api<Recambio>('/recambios', { metodo: 'POST', cuerpo: datos })
+        : api<Recambio>(`/recambios/${id}`, { metodo: 'PATCH', cuerpo: datos }),
+    onSuccess: () => void cliente.invalidateQueries({ queryKey: ['recambios'] }),
+  })
+}
+
+export function useBajaRecambio() {
+  const cliente = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/recambios/${id}`, { metodo: 'DELETE' }),
+    onSuccess: () => void cliente.invalidateQueries({ queryKey: ['recambios'] }),
   })
 }

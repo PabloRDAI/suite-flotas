@@ -85,6 +85,7 @@ cada test trabaja dentro de una transacción que se deshace al terminar (fixture
 | Email de usuario único | `uq_usuario_email` |
 | Estados, roles, combustibles… solo valores válidos | `CHECK` de cada columna enum |
 | Km ≥ 0, año entre 1950 y 2100, capacidad > 0 | `ck_vehiculo_*` |
+| Solo una línea de recambio enlaza un recambio del catálogo, y de la misma empresa — MAN-09 | `ck_linea_ot_recambio_solo_en_lineas_de_recambio` + FK compuesta |
 
 ## Migraciones (chuleta)
 
@@ -192,7 +193,9 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | POST | `/ordenes-trabajo` | admin, taller | Crear desde una avería (`averia_id`), desde un plan (`plan_id` + `vehiculo_id`) o a mano |
 | GET/PATCH | `/ordenes-trabajo/{id}` | todos / admin, taller | Ver o editar (descripción, inmoviliza, responsable) |
 | POST | `/ordenes-trabajo/{id}/iniciar`, `/cerrar`, `/cancelar` | admin, taller | Flujo abierta → en curso → cerrada (con `km` y `fecha`) o cancelada |
-| POST/DELETE | `/ordenes-trabajo/{id}/lineas` | admin, taller | Líneas de coste: mano de obra, recambio o externo |
+| POST/DELETE | `/ordenes-trabajo/{id}/lineas` | admin, taller | Líneas de coste: mano de obra, recambio o externo. Con `recambio_id`, la descripción y el precio salen del catálogo si no se envían (MAN-09) |
+| GET | `/recambios` | todos | Catálogo de recambios (filtros `buscar`, `incluir_bajas`) |
+| POST/PATCH/DELETE | `/recambios`, `/recambios/{id}` | admin, taller | Alta, edición y baja lógica. Referencia única en la empresa (409) |
 | GET | `/preventivos/prevision` | todos | Previsión (MAN-02): vencidos y lo que toca en 30 días o 2.000 km, por urgencia (filtros `centro_id`, `tipo_id`) |
 | POST | `/vehiculos/{id}/preventivos/{plan_id}/realizado` | admin, taller | Registrar que se hizo (fecha y km) y recalcular |
 
@@ -257,6 +260,11 @@ registran como lectura (validada con FLO-05), la avería queda resuelta y, si es
 recalcula el próximo. Cancelar devuelve la avería a "comunicada". Mientras una OT que inmoviliza
 está abierta, el vehículo está "en taller". Coste = suma de las líneas (cantidad × precio), con
 `Decimal` y redondeo a céntimos; la BD exige km y fecha en las OT cerradas.
+
+**Catálogo de recambios (MAN-09):** referencia (en mayúsculas, única en la empresa), nombre y
+precio, sin stock. Al añadir un recambio del catálogo a una OT, su precio se **copia** a la línea
+como precio por defecto (se puede ajustar); por eso cambiar después el precio del catálogo no
+altera el coste de las OT ya registradas. La baja es lógica: las OT antiguas siguen enlazadas.
 
 **Estado del vehículo (FLO-03, regla 1):** de baja si está inactivo; en taller si tiene una OT
 abierta que inmoviliza; inmovilizado si tiene una avería "inmoviliza" sin OT abierta; si no,

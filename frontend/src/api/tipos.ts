@@ -153,10 +153,20 @@ export type Concepto = 'mano_obra' | 'recambio' | 'externo'
 export type LineaOT = {
   id: number
   concepto: Concepto
+  recambio_id: number | null // MAN-09: recambio del catálogo, si lo es
   descripcion: string
   cantidad: number
   precio_unitario: number
   importe: number
+}
+
+/** Recambio del catálogo (MAN-09). El precio es el precio por defecto al añadirlo a una OT. */
+export type Recambio = {
+  id: number
+  referencia: string
+  nombre: string
+  precio: number
+  activo: boolean
 }
 
 export type Coste = { mano_obra: number; recambios: number; externos: number; total: number }
