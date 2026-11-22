@@ -13,7 +13,11 @@ import type {
   Averia,
   Centro,
   Gravedad,
+  Historial,
   LecturaKm,
+  OrdenTrabajo,
+  Concepto,
+  TipoOT,
   Panel,
   Persona,
   PrevisionItem,
@@ -268,6 +272,85 @@ export function useResolverAveria() {
   return useMutation({
     mutationFn: ({ id, nota }: { id: number; nota: string }) =>
       api<Averia>(`/averias/${id}/resolver`, { metodo: 'POST', cuerpo: { nota: nota || null } }),
+    onSuccess: refrescar,
+  })
+}
+
+// --- Órdenes de trabajo (MAN-04 a MAN-07) ------------------------------------
+
+export type FiltrosOT = { abiertas?: boolean; estado?: string; vehiculoId?: number; cerradasDesde?: string }
+
+export const useOrdenes = (filtros: FiltrosOT) =>
+  useQuery({
+    queryKey: ['ordenes', filtros],
+    queryFn: () => {
+      const p = new URLSearchParams()
+      if (filtros.abiertas) p.set('abiertas', 'true')
+      if (filtros.estado) p.set('estado', filtros.estado)
+      if (filtros.vehiculoId) p.set('vehiculo_id', String(filtros.vehiculoId))
+      if (filtros.cerradasDesde) p.set('cerradas_desde', filtros.cerradasDesde)
+      return api<OrdenTrabajo[]>(`/ordenes-trabajo${p.size ? `?${p}` : ''}`)
+    },
+  })
+
+export const useOrden = (id: number) =>
+  useQuery({ queryKey: ['orden', id], queryFn: () => api<OrdenTrabajo>(`/ordenes-trabajo/${id}`) })
+
+/** MAN-07: historial de mantenimiento del vehículo con su resumen de costes. */
+export const useHistorial = (vehiculoId: number) =>
+  useQuery({ queryKey: ['vehiculo', vehiculoId, 'historial'], queryFn: () => api<Historial>(`/vehiculos/${vehiculoId}/historial`) })
+
+/** Cualquier cambio en una OT afecta a: OT, vehículo (estado, km), panel, averías y preventivos. */
+function useRefrescarTrasOT() {
+  const cliente = useQueryClient()
+  return () => {
+    for (const clave of [['ordenes'], ['orden'], ['vehiculo'], ['vehiculos'], ['panel'], ['averias'], ['prevision']]) {
+      void cliente.invalidateQueries({ queryKey: clave })
+    }
+  }
+}
+
+export type NuevaOT =
+  | { averia_id: number }
+  | { vehiculo_id: number; plan_id: number }
+  | { vehiculo_id: number; tipo: TipoOT; descripcion: string; inmoviliza: boolean }
+
+export function useCrearOT() {
+  const refrescar = useRefrescarTrasOT()
+  return useMutation({
+    mutationFn: (datos: NuevaOT) => api<OrdenTrabajo>('/ordenes-trabajo', { metodo: 'POST', cuerpo: datos }),
+    onSuccess: refrescar,
+  })
+}
+
+export type AccionOT =
+  | { accion: 'iniciar' }
+  | { accion: 'cerrar'; km: number; fecha?: string; trabajo_realizado?: string }
+  | { accion: 'cancelar'; motivo?: string }
+
+/** Flujo de la OT (MAN-05): iniciar, cerrar (con km y fecha) o cancelar. */
+export function useAccionOT(otId: number) {
+  const refrescar = useRefrescarTrasOT()
+  return useMutation({
+    mutationFn: ({ accion, ...datos }: AccionOT) =>
+      api<OrdenTrabajo>(`/ordenes-trabajo/${otId}/${accion}`, { metodo: 'POST', cuerpo: datos }),
+    onSuccess: refrescar,
+  })
+}
+
+export function useAnadirLinea(otId: number) {
+  const refrescar = useRefrescarTrasOT()
+  return useMutation({
+    mutationFn: (linea: { concepto: Concepto; descripcion: string; cantidad: number; precio_unitario: number }) =>
+      api<OrdenTrabajo>(`/ordenes-trabajo/${otId}/lineas`, { metodo: 'POST', cuerpo: linea }),
+    onSuccess: refrescar,
+  })
+}
+
+export function useBorrarLinea(otId: number) {
+  const refrescar = useRefrescarTrasOT()
+  return useMutation({
+    mutationFn: (lineaId: number) => api<void>(`/ordenes-trabajo/${otId}/lineas/${lineaId}`, { metodo: 'DELETE' }),
     onSuccess: refrescar,
   })
 }

@@ -184,8 +184,9 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | POST | `/averias` | todos | Comunicar avería (multipart: `vehiculo_id`, `descripcion`, `gravedad`, `foto` opcional) |
 | GET | `/averias` | todos | Averías (abiertas por defecto; `abiertas=false`, `vehiculo_id`, `gravedad`) |
 | GET | `/averias/{id}` y `/averias/{id}/foto` | todos | Una avería y su foto (solo de la propia empresa) |
-| POST | `/averias/{id}/resolver` | admin, taller | Resolver con nota; recalcula el estado del vehículo |
-| GET | `/ordenes-trabajo` | todos | OT (filtros `abiertas`, `estado`, `tipo`, `vehiculo_id`), con líneas y coste |
+| POST | `/averias/{id}/resolver` | admin, taller | Resolver sin OT, con nota (409 si tiene una OT abierta: se resuelve al cerrarla) |
+| GET | `/ordenes-trabajo` | todos | OT (filtros `abiertas`, `estado`, `tipo`, `vehiculo_id`, `cerradas_desde`), con líneas y coste |
+| GET | `/vehiculos/{id}/historial` | todos | Historial de mantenimiento (MAN-07): todas sus OT con fecha, tipo, km y coste, y resumen |
 | POST | `/ordenes-trabajo` | admin, taller | Crear desde una avería (`averia_id`), desde un plan (`plan_id` + `vehiculo_id`) o a mano |
 | GET/PATCH | `/ordenes-trabajo/{id}` | todos / admin, taller | Ver o editar (descripción, inmoviliza, responsable) |
 | POST | `/ordenes-trabajo/{id}/iniciar`, `/cerrar`, `/cancelar` | admin, taller | Flujo abierta → en curso → cerrada (con `km` y `fecha`) o cancelada |

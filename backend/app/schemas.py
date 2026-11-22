@@ -400,6 +400,8 @@ class AveriaSalida(BaseModel):
     gravedad: GravedadAveria
     estado: EstadoAveria
     tiene_foto: bool
+    # La OT más reciente creada desde esta avería (MAN-04), si la hay.
+    orden_trabajo_id: int | None = None
     resuelta_en: datetime | None
     nota_resolucion: str | None
     # Estado del vehículo tras la avería: "al instante" (criterio de MAN-03).
@@ -518,6 +520,31 @@ class OTSalida(BaseModel):
     lineas: list[LineaSalida]
     coste: CosteSalida  # MAN-06: suma de las líneas
     estado_vehiculo: EstadoVehiculo
+
+
+class HistorialItem(BaseModel):
+    """Una OT en el historial del vehículo (MAN-07): fecha, tipo, km y coste."""
+
+    ot_id: int
+    fecha: date  # la de cierre si está cerrada; si no, la de apertura
+    tipo: TipoOT
+    estado: EstadoOT
+    descripcion: str
+    km: int | None  # km de cierre (solo las cerradas)
+    coste: float
+
+
+class ResumenHistorial(BaseModel):
+    ordenes: int
+    cerradas: int
+    coste_total: float  # de las cerradas
+    coste_preventivo: float
+    coste_correctivo: float
+
+
+class HistorialSalida(BaseModel):
+    resumen: ResumenHistorial
+    ordenes: list[HistorialItem]  # de la más reciente a la más antigua
 
 
 class VehiculoPanel(BaseModel):

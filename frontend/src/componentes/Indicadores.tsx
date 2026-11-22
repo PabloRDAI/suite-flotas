@@ -10,8 +10,12 @@ import {
   IconTool,
   IconArchive,
   IconClockHour4,
+  IconPlayerPlay,
+  IconCalendarRepeat,
+  IconBan,
+  IconInbox,
 } from '@tabler/icons-react'
-import type { EstadoVehiculo as Estado, Semaforo, SituacionPreventivo } from '../api/tipos.ts'
+import type { EstadoOT as EstadoOrden, EstadoVehiculo as Estado, Semaforo, SituacionPreventivo, TipoOT } from '../api/tipos.ts'
 
 const SEMAFORO = {
   verde: { color: 'green', texto: 'En regla', Icono: IconCircleCheck },
@@ -58,6 +62,36 @@ export function IndicadorPreventivo({ valor }: { valor: SituacionPreventivo }) {
   return (
     <Badge color={color} variant="light" leftSection={<Icono size={14} aria-hidden />}>
       {texto}
+    </Badge>
+  )
+}
+
+const ESTADO_OT = {
+  abierta: { color: 'yellow', texto: 'Abierta', Icono: IconInbox },
+  en_curso: { color: 'blue', texto: 'En curso', Icono: IconPlayerPlay },
+  cerrada: { color: 'green', texto: 'Cerrada', Icono: IconCircleCheck },
+  cancelada: { color: 'gray', texto: 'Cancelada', Icono: IconBan },
+} as const
+
+/** Estado de una orden de trabajo (MAN-05), con icono y texto. */
+export function EstadoOT({ valor }: { valor: EstadoOrden }) {
+  const { color, texto, Icono } = ESTADO_OT[valor]
+  return (
+    <Badge color={color} variant="light" leftSection={<Icono size={14} aria-hidden />}>
+      {texto}
+    </Badge>
+  )
+}
+
+/** Preventiva (programada) o correctiva (reparación). */
+export function TipoOrden({ valor }: { valor: TipoOT }) {
+  return valor === 'preventiva' ? (
+    <Badge color="teal" variant="outline" leftSection={<IconCalendarRepeat size={14} aria-hidden />}>
+      Preventiva
+    </Badge>
+  ) : (
+    <Badge color="orange" variant="outline" leftSection={<IconTool size={14} aria-hidden />}>
+      Correctiva
     </Badge>
   )
 }

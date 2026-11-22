@@ -18,12 +18,25 @@ from app.models import Averia, EstadoPlan, LecturaKm, LineaOT, OrdenTrabajo, Per
 from app.reglas.estado_vehiculo import ESTADOS_OT_ABIERTA, EstadoAveria, EstadoOT, GravedadAveria
 from app.reglas.km import Lectura, LecturaNoValida, comprobar_lectura, km_actuales
 from app.reglas.ordenes import OrigenOT, TipoOT, TransicionNoValida, comprobar_transicion, editable
-from app.schemas import LineaCrear, OTCancelar, OTCerrar, OTCrear, OTEditar, OTSalida
+from app.schemas import (
+    HistorialItem,
+    HistorialSalida,
+    LineaCrear,
+    OTCancelar,
+    OTCerrar,
+    OTCrear,
+    OTEditar,
+    OTSalida,
+    ResumenHistorial,
+)
+from app.routers.vehiculos import vehiculo_de_mi_empresa
 from app.servicios import ordenes as servicio
 from app.servicios.estado_vehiculo import actualizar_estado
 from app.servicios.preventivos import recalcular, tareas_de
 
 router = APIRouter(prefix="/ordenes-trabajo", tags=["mantenimiento"])
+# Historial por vehículo (MAN-07): la spec lo sitúa en /vehiculos/{id}/historial.
+router_historial = APIRouter(prefix="/vehiculos", tags=["mantenimiento"])
 
 _422 = status.HTTP_422_UNPROCESSABLE_CONTENT
 
@@ -95,8 +108,13 @@ def listar(
     estado: EstadoOT | None = None,
     tipo: TipoOT | None = None,
     vehiculo_id: int | None = None,
+    cerradas_desde: date | None = None,
 ) -> list[OTSalida]:
-    """OT de la empresa, de la más reciente a la más antigua. ?abiertas=true: abiertas y en curso."""
+    """OT de la empresa, de la más reciente a la más antigua.
+
+    ?abiertas=true: abiertas y en curso. ?cerradas_desde=AAAA-MM-DD: solo las cerradas
+    desde esa fecha (p. ej. la columna "Cerradas" del tablero de taller).
+    """
     consulta = servicio.consulta_base(usuario.empresa_id)
     if abiertas:
         consulta = consulta.where(OrdenTrabajo.estado.in_(ESTADOS_OT_ABIERTA))
@@ -106,7 +124,48 @@ def listar(
         consulta = consulta.where(OrdenTrabajo.tipo == tipo)
     if vehiculo_id is not None:
         consulta = consulta.where(OrdenTrabajo.vehiculo_id == vehiculo_id)
+    if cerradas_desde is not None:
+        consulta = consulta.where(OrdenTrabajo.estado == EstadoOT.CERRADA, OrdenTrabajo.fecha_cierre >= cerradas_desde)
     return servicio.salidas(db, consulta.order_by(OrdenTrabajo.abierta_en.desc(), OrdenTrabajo.id.desc()))
+
+
+@router_historial.get("/{vehiculo_id}/historial")
+def historial_del_vehiculo(vehiculo_id: int, usuario: UsuarioActual, db: Db) -> HistorialSalida:
+    """MAN-07: todas las OT del vehículo con fecha, tipo, km y coste (la más reciente primero),
+    y el resumen de lo gastado (solo cuentan las cerradas)."""
+    vehiculo = vehiculo_de_mi_empresa(db, usuario, vehiculo_id, solo_activos=False)
+    ordenes = servicio.salidas(db, servicio.consulta_base(usuario.empresa_id).where(OrdenTrabajo.vehiculo_id == vehiculo.id))
+    items = sorted(
+        (
+            HistorialItem(
+                ot_id=o.id,
+                fecha=o.fecha_cierre or o.abierta_en.date(),
+                tipo=o.tipo,
+                estado=o.estado,
+                descripcion=o.descripcion,
+                km=o.km_cierre,
+                coste=o.coste.total,
+            )
+            for o in ordenes
+        ),
+        key=lambda i: (i.fecha, i.ot_id),
+        reverse=True,
+    )
+    cerradas = [o for o in ordenes if o.estado == EstadoOT.CERRADA]
+
+    def suma(tipo: TipoOT | None = None) -> float:
+        return round(sum(o.coste.total for o in cerradas if tipo is None or o.tipo == tipo), 2)
+
+    return HistorialSalida(
+        resumen=ResumenHistorial(
+            ordenes=len(ordenes),
+            cerradas=len(cerradas),
+            coste_total=suma(),
+            coste_preventivo=suma(TipoOT.PREVENTIVA),
+            coste_correctivo=suma(TipoOT.CORRECTIVA),
+        ),
+        ordenes=items,
+    )
 
 
 @router.get("/{ot_id}")

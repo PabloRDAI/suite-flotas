@@ -21,6 +21,7 @@ const Taller = lazy(() => import('./pantallas/Taller.tsx'))
 const Averias = lazy(() => import('./pantallas/Averias.tsx'))
 const ComunicarAveria = lazy(() => import('./pantallas/ComunicarAveria.tsx'))
 const Inicio = lazy(() => import('./pantallas/Inicio.tsx'))
+const OrdenTrabajo = lazy(() => import('./pantallas/OrdenTrabajo.tsx'))
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/personal" element={<Personal />} />
           <Route path="/personal/:id" element={<FichaPersona />} />
           <Route path="/taller" element={<Taller />} />
+          <Route path="/ordenes-trabajo/:id" element={<OrdenTrabajo />} />
           <Route path="/averias" element={<Averias />} />
           <Route path="/averias/nueva" element={<ComunicarAveria />} />
           <Route path="/sistema" element={<EstadoSistema />} />

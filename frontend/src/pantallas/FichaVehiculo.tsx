@@ -35,6 +35,7 @@ import { ErrorApi } from '../api/cliente.ts'
 import {
   useAptitud,
   useAsignacionesVehiculo,
+  useHistorial,
   usePreventivos,
   useCentros,
   useLecturasKm,
@@ -47,12 +48,13 @@ import type { Aptitud, Vehiculo } from '../api/tipos.ts'
 import { useSesion } from '../auth/contexto.ts'
 import { puedeGestionarFlota, puedeGestionarTaller } from '../auth/permisos.ts'
 import { AsignarConductor } from '../componentes/AsignarConductor.tsx'
+import { BotonCrearOTPlan } from '../componentes/BotonCrearOTPlan.tsx'
 import { BotonRealizado } from '../componentes/BotonRealizado.tsx'
 import { Cargando, ErrorCarga } from '../componentes/Carga.tsx'
 import { Documentacion } from '../componentes/Documentacion.tsx'
 import { HistorialAsignaciones } from '../componentes/HistorialAsignaciones.tsx'
-import { EstadoVehiculo, IndicadorPreventivo } from '../componentes/Indicadores.tsx'
-import { etiqueta, formatoFecha, formatoKm, formatoNumero, hoyIso } from '../util/formato.ts'
+import { EstadoOT, EstadoVehiculo, IndicadorPreventivo, TipoOrden } from '../componentes/Indicadores.tsx'
+import { etiqueta, formatoEuros, formatoFecha, formatoKm, formatoNumero, hoyIso } from '../util/formato.ts'
 
 export default function FichaVehiculo() {
   const id = Number(useParams().id)
@@ -125,7 +127,10 @@ export default function FichaVehiculo() {
           <PestanaAsignaciones vehiculo={v} />
         </Tabs.Panel>
         <Tabs.Panel value="mantenimiento" pt="md">
-          <PestanaMantenimiento vehiculo={v} />
+          <Stack gap="xl">
+            <PestanaMantenimiento vehiculo={v} />
+            <HistorialMantenimiento vehiculoId={v.id} />
+          </Stack>
         </Tabs.Panel>
         <Tabs.Panel value="km" pt="md">
           <PestanaKm vehiculo={v} />
@@ -273,14 +278,17 @@ function PestanaMantenimiento({ vehiculo }: { vehiculo: Vehiculo }) {
               <Table.Td>{p.motivo}</Table.Td>
               {gestiona && (
                 <Table.Td>
-                  <BotonRealizado
-                    vehiculoId={vehiculo.id}
-                    matricula={vehiculo.matricula}
-                    planId={p.plan_id}
-                    planNombre={p.plan_nombre}
-                    kmActuales={vehiculo.km_actuales}
-                    tareas={p.tareas}
-                  />
+                  <Group gap={6} wrap="nowrap">
+                    <BotonCrearOTPlan p={{ vehiculo_id: vehiculo.id, plan_id: p.plan_id, plan_nombre: p.plan_nombre, matricula: vehiculo.matricula }} />
+                    <BotonRealizado
+                      vehiculoId={vehiculo.id}
+                      matricula={vehiculo.matricula}
+                      planId={p.plan_id}
+                      planNombre={p.plan_nombre}
+                      kmActuales={vehiculo.km_actuales}
+                      tareas={p.tareas}
+                    />
+                  </Group>
                 </Table.Td>
               )}
             </Table.Tr>
@@ -288,6 +296,69 @@ function PestanaMantenimiento({ vehiculo }: { vehiculo: Vehiculo }) {
         </Table.Tbody>
       </Table>
     </Table.ScrollContainer>
+  )
+}
+
+/** MAN-07: "la ficha del vehículo lista todas sus OT con fecha, tipo, km y coste". */
+function HistorialMantenimiento({ vehiculoId }: { vehiculoId: number }) {
+  const historial = useHistorial(vehiculoId)
+  if (historial.isPending) return <Cargando />
+  if (historial.error) return <ErrorCarga error={historial.error} />
+  const { resumen, ordenes } = historial.data
+  return (
+    <Stack gap="xs">
+      <Group justify="space-between" align="baseline">
+        <Title order={3} size="h5">
+          Historial de mantenimiento
+        </Title>
+        <Text size="sm" c="dimmed">
+          {resumen.cerradas} OT cerradas · {formatoEuros(resumen.coste_total)} (preventivo {formatoEuros(resumen.coste_preventivo)} ·
+          correctivo {formatoEuros(resumen.coste_correctivo)})
+        </Text>
+      </Group>
+      {ordenes.length === 0 ? (
+        <Text c="dimmed">Sin órdenes de trabajo.</Text>
+      ) : (
+        <Table.ScrollContainer minWidth={720}>
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Fecha</Table.Th>
+                <Table.Th>Tipo</Table.Th>
+                <Table.Th>Estado</Table.Th>
+                <Table.Th>Descripción</Table.Th>
+                <Table.Th ta="right">Km</Table.Th>
+                <Table.Th ta="right">Coste</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {ordenes.map((o) => (
+                <Table.Tr key={o.ot_id}>
+                  <Table.Td>
+                    <Anchor component={Link} to={`/ordenes-trabajo/${o.ot_id}`}>
+                      {formatoFecha(o.fecha)}
+                    </Anchor>
+                  </Table.Td>
+                  <Table.Td>
+                    <TipoOrden valor={o.tipo} />
+                  </Table.Td>
+                  <Table.Td>
+                    <EstadoOT valor={o.estado} />
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" lineClamp={1}>
+                      {o.descripcion}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td ta="right">{o.km !== null ? formatoKm(o.km) : '—'}</Table.Td>
+                  <Table.Td ta="right">{formatoEuros(o.coste)}</Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
+    </Stack>
   )
 }
 

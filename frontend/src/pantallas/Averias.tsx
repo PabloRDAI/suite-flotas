@@ -19,10 +19,10 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconCircleCheck, IconPhoto, IconPlus } from '@tabler/icons-react'
+import { IconCircleCheck, IconClipboardList, IconPhoto, IconPlus } from '@tabler/icons-react'
 import { useState } from 'react'
-import { Link } from 'react-router'
-import { useAverias, useFotoAveria, useResolverAveria } from '../api/consultas.ts'
+import { Link, useNavigate } from 'react-router'
+import { useAverias, useCrearOT, useFotoAveria, useResolverAveria } from '../api/consultas.ts'
 import type { Averia, EstadoAveria, Gravedad } from '../api/tipos.ts'
 import { useSesion } from '../auth/contexto.ts'
 import { puedeGestionarTaller } from '../auth/permisos.ts'
@@ -96,6 +96,17 @@ export default function Averias() {
 function TarjetaAveria({ averia: a, puedeResolver }: { averia: Averia; puedeResolver: boolean }) {
   const [verFoto, setVerFoto] = useState(false)
   const [resolviendo, setResolviendo] = useState(false)
+  const crearOT = useCrearOT()
+  const navegar = useNavigate()
+  // MAN-04: la OT se crea desde la avería (queda enlazada y "en reparación") y se abre su ficha.
+  const crear = () =>
+    crearOT.mutate(
+      { averia_id: a.id },
+      {
+        onSuccess: (ot) => void navegar(`/ordenes-trabajo/${ot.id}`),
+        onError: (e) => notifications.show({ color: 'red', message: e.message }),
+      },
+    )
   return (
     <Card withBorder>
       <Stack gap="xs">
@@ -122,9 +133,19 @@ function TarjetaAveria({ averia: a, puedeResolver }: { averia: Averia; puedeReso
               Ver foto
             </Button>
           )}
-          {puedeResolver && a.estado !== 'resuelta' && (
+          {a.orden_trabajo_id !== null && (
+            <Button size="xs" variant="default" leftSection={<IconClipboardList size={14} />} component={Link} to={`/ordenes-trabajo/${a.orden_trabajo_id}`}>
+              Ver OT
+            </Button>
+          )}
+          {puedeResolver && a.estado === 'comunicada' && (
+            <Button size="xs" loading={crearOT.isPending} onClick={crear}>
+              Crear OT
+            </Button>
+          )}
+          {puedeResolver && a.estado === 'comunicada' && (
             <Button size="xs" variant="light" color="green" onClick={() => setResolviendo(true)}>
-              Resolver
+              Resolver sin OT
             </Button>
           )}
         </Group>

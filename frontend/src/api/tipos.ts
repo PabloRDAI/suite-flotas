@@ -129,6 +129,7 @@ export type Averia = {
   gravedad: Gravedad
   estado: EstadoAveria
   tiene_foto: boolean
+  orden_trabajo_id: number | null // la OT creada desde esta avería (MAN-04)
   resuelta_en: string | null
   nota_resolucion: string | null
   estado_vehiculo: EstadoVehiculo // tras la avería: "al instante" (MAN-03)
@@ -140,6 +141,55 @@ export type VehiculoSugerido = {
   marca: string
   modelo: string
   habitual: boolean
+}
+
+// --- Órdenes de trabajo (MAN-04 a MAN-07) ---
+
+export type TipoOT = 'preventiva' | 'correctiva'
+export type OrigenOT = 'plan' | 'averia' | 'manual'
+export type EstadoOT = 'abierta' | 'en_curso' | 'cerrada' | 'cancelada'
+export type Concepto = 'mano_obra' | 'recambio' | 'externo'
+
+export type LineaOT = {
+  id: number
+  concepto: Concepto
+  descripcion: string
+  cantidad: number
+  precio_unitario: number
+  importe: number
+}
+
+export type Coste = { mano_obra: number; recambios: number; externos: number; total: number }
+
+export type OrdenTrabajo = {
+  id: number
+  vehiculo_id: number
+  matricula: string
+  tipo: TipoOT
+  origen: OrigenOT
+  estado: EstadoOT
+  plan_id: number | null
+  plan_nombre: string | null
+  averia_id: number | null
+  inmoviliza: boolean
+  descripcion: string
+  responsable_id: number | null
+  responsable_nombre: string | null
+  abierta_en: string
+  iniciada_en: string | null
+  fecha_cierre: string | null
+  km_cierre: number | null
+  trabajo_realizado: string | null
+  cancelada_en: string | null
+  motivo_cancelacion: string | null
+  lineas: LineaOT[]
+  coste: Coste // MAN-06: suma de las líneas
+  estado_vehiculo: EstadoVehiculo
+}
+
+export type Historial = {
+  resumen: { ordenes: number; cerradas: number; coste_total: number; coste_preventivo: number; coste_correctivo: number }
+  ordenes: { ot_id: number; fecha: string; tipo: TipoOT; estado: EstadoOT; descripcion: string; km: number | null; coste: number }[]
 }
 
 // --- Mantenimiento preventivo (MAN-01, MAN-02) ---

@@ -10,11 +10,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.deps import Db, GestionTaller, UsuarioActual
-from app.models import Asignacion, Averia, Persona, Usuario, Vehiculo
-from app.reglas.estado_vehiculo import EstadoAveria, GravedadAveria
+from app.models import Asignacion, Averia, OrdenTrabajo, Persona, Usuario, Vehiculo
+from app.reglas.estado_vehiculo import ESTADOS_OT_ABIERTA, EstadoAveria, GravedadAveria
 from app.schemas import AveriaResolver, AveriaSalida, VehiculoSugerido
 from app.servicios import adjuntos
 from app.servicios.estado_vehiculo import actualizar_estado
@@ -31,7 +31,19 @@ def _consulta_base(empresa_id: int):  # type: ignore[no-untyped-def]
     )
 
 
-def _salida(a: Averia, v: Vehiculo, comunicada_por: str | None) -> AveriaSalida:
+def _ot_de_cada_averia(db: Db, averia_ids: list[int]) -> dict[int, int]:
+    """La OT más reciente de cada avería, con UNA consulta para todas (sin N+1)."""
+    if not averia_ids:
+        return {}
+    filas = db.execute(
+        select(OrdenTrabajo.averia_id, func.max(OrdenTrabajo.id))
+        .where(OrdenTrabajo.averia_id.in_(averia_ids))
+        .group_by(OrdenTrabajo.averia_id)
+    ).tuples()
+    return {averia_id: ot_id for averia_id, ot_id in filas}
+
+
+def _salida(a: Averia, v: Vehiculo, comunicada_por: str | None, ot_id: int | None = None) -> AveriaSalida:
     return AveriaSalida(
         id=a.id,
         vehiculo_id=v.id,
@@ -42,6 +54,7 @@ def _salida(a: Averia, v: Vehiculo, comunicada_por: str | None) -> AveriaSalida:
         gravedad=a.gravedad,
         estado=a.estado,
         tiene_foto=a.foto is not None,
+        orden_trabajo_id=ot_id,
         resuelta_en=a.resuelta_en,
         nota_resolucion=a.nota_resolucion,
         estado_vehiculo=v.estado,
@@ -52,7 +65,7 @@ def _una(db: Db, empresa_id: int, averia_id: int) -> AveriaSalida:
     fila = db.execute(_consulta_base(empresa_id).where(Averia.id == averia_id)).tuples().one_or_none()
     if fila is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Avería no encontrada")
-    return _salida(*fila)
+    return _salida(*fila, ot_id=_ot_de_cada_averia(db, [averia_id]).get(averia_id))
 
 
 # --- Rutas fijas (antes que /{averia_id}) ------------------------------------
@@ -147,7 +160,9 @@ def listar_averias(
     if gravedad is not None:
         consulta = consulta.where(Averia.gravedad == gravedad)
     filas = db.execute(consulta.order_by(Averia.comunicada_en.desc(), Averia.id.desc())).tuples()
-    return [_salida(*f) for f in filas]
+    filas = filas.all()
+    ots = _ot_de_cada_averia(db, [a.id for a, _, _ in filas])
+    return [_salida(a, v, nombre, ots.get(a.id)) for a, v, nombre in filas]
 
 
 # --- Una avería --------------------------------------------------------------
@@ -172,12 +187,20 @@ def foto_de_la_averia(averia_id: int, usuario: UsuarioActual, db: Db) -> FileRes
 
 @router.post("/{averia_id}/resolver")
 def resolver_averia(averia_id: int, datos: AveriaResolver, usuario: GestionTaller, db: Db) -> AveriaSalida:
-    """Marca la avería como resuelta y recalcula el estado del vehículo (vuelve a operativo si procede)."""
+    """Resuelve una avería SIN orden de trabajo y recalcula el estado del vehículo.
+
+    409 si ya estaba resuelta o si tiene una OT abierta (entonces se resuelve cerrando la OT).
+    """
     averia = db.scalar(select(Averia).where(Averia.id == averia_id, Averia.empresa_id == usuario.empresa_id))
     if averia is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Avería no encontrada")
     if averia.estado == EstadoAveria.RESUELTA:
         raise HTTPException(status.HTTP_409_CONFLICT, "La avería ya estaba resuelta")
+    if db.scalar(
+        select(OrdenTrabajo.id).where(OrdenTrabajo.averia_id == averia.id, OrdenTrabajo.estado.in_(ESTADOS_OT_ABIERTA))
+    ):
+        # Se resuelve cerrando su OT (que además registra km, coste y trabajo realizado).
+        raise HTTPException(status.HTTP_409_CONFLICT, "La avería tiene una orden de trabajo abierta: ciérrala para resolverla")
 
     averia.estado = EstadoAveria.RESUELTA
     averia.resuelta_en = datetime.now(UTC)

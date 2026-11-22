@@ -5,6 +5,11 @@ const numero = new Intl.NumberFormat('es-ES')
 /** 123456 -> "123.456 km" */
 export const formatoKm = (km: number): string => `${numero.format(km)} km`
 
+const euros = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
+
+/** 1234.5 -> "1.234,50 €" */
+export const formatoEuros = (importe: number): string => euros.format(importe)
+
 /** 1200 -> "1.200" */
 export const formatoNumero = (n: number): string => numero.format(n)
 

@@ -40,6 +40,7 @@ app.include_router(asignaciones.router)
 app.include_router(planes.router)
 app.include_router(averias.router)
 app.include_router(ordenes_trabajo.router)
+app.include_router(ordenes_trabajo.router_historial)
 
 
 @app.get("/salud", tags=["sistema"])
