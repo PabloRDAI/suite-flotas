@@ -8,7 +8,7 @@
 from datetime import UTC, date, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 
@@ -18,6 +18,8 @@ from app.reglas.estado_vehiculo import ESTADOS_OT_ABIERTA, EstadoAveria, Graveda
 from app.schemas import AveriaResolver, AveriaSalida, VehiculoSugerido
 from app.servicios import adjuntos
 from app.servicios.estado_vehiculo import actualizar_estado
+from app.servicios.etiquetas import etiqueta
+from app.servicios.excel import Columna, libro_xlsx, respuesta_xlsx
 
 router = APIRouter(prefix="/averias", tags=["mantenimiento"])
 
@@ -163,6 +165,29 @@ def listar_averias(
     filas = filas.all()
     ots = _ot_de_cada_averia(db, [a.id for a, _, _ in filas])
     return [_salida(a, v, nombre, ots.get(a.id)) for a, v, nombre in filas]
+
+
+@router.get("/exportar")
+def exportar_averias(
+    usuario: UsuarioActual,
+    db: Db,
+    abiertas: bool = True,
+    vehiculo_id: int | None = None,
+    gravedad: GravedadAveria | None = None,
+) -> Response:
+    """GEN-06: el listado de averías en Excel, con los mismos filtros que la pantalla."""
+    averias = listar_averias(usuario, db, abiertas=abiertas, vehiculo_id=vehiculo_id, gravedad=gravedad)
+    columnas = [
+        Columna("Comunicada", 17, "fecha_hora"), Columna("Matrícula", 12), Columna("Descripción", 50),
+        Columna("Gravedad", 11), Columna("Estado", 14), Columna("Comunicada por", 24), Columna("OT n.º", 8, "entero"),
+        Columna("Resuelta", 17, "fecha_hora"), Columna("Nota de resolución", 40),
+    ]
+    filas = [
+        [a.comunicada_en, a.matricula, a.descripcion, etiqueta(a.gravedad), etiqueta(a.estado), a.comunicada_por,
+         a.orden_trabajo_id, a.resuelta_en, a.nota_resolucion]
+        for a in averias
+    ]
+    return respuesta_xlsx(libro_xlsx("Averías", columnas, filas), "averias")
 
 
 # --- Una avería --------------------------------------------------------------

@@ -15,6 +15,7 @@ import { Link } from 'react-router'
 import { useIndicadores } from '../api/consultas.ts'
 import type { Indicadores } from '../api/tipos.ts'
 import { formatoEuros, formatoEurosKm, formatoFecha, formatoKm, formatoNumero, formatoPorcentaje } from '../util/formato.ts'
+import { BotonExportar } from './BotonExportar.tsx'
 import { Cargando, ErrorCarga } from './Carga.tsx'
 
 const COLORES = {
@@ -50,7 +51,7 @@ export function IndicadoresMantenimiento({ centroId, tipoId }: { centroId: strin
           <>
             <CifrasClave datos={indicadores.data} />
             <RepartoCoste datos={indicadores.data} />
-            <TablaCostes datos={indicadores.data} />
+            <TablaCostes datos={indicadores.data} centroId={centroId} tipoId={tipoId} />
           </>
         )}
       </Stack>
@@ -164,16 +165,23 @@ function RepartoCoste({ datos }: { datos: Indicadores }) {
 
 // --- 3. Tabla por vehículo ---------------------------------------------------
 
-function TablaCostes({ datos }: { datos: Indicadores }) {
+function TablaCostes({ datos, centroId, tipoId }: { datos: Indicadores; centroId: string | null; tipoId: string | null }) {
   const [todos, setTodos] = useState(false)
   const filas = todos ? datos.vehiculos : datos.vehiculos.slice(0, FILAS_INICIALES)
   const cifra = { fontVariantNumeric: 'tabular-nums' } as const // columnas de números alineadas
 
   return (
     <div>
-      <Text size="sm" fw={500} mb={6}>
-        Por vehículo (de mayor a menor coste)
-      </Text>
+      <Group justify="space-between" mb={6}>
+        <Text size="sm" fw={500}>
+          Por vehículo (de mayor a menor coste)
+        </Text>
+        <BotonExportar
+          ruta="/panel/indicadores/exportar"
+          nombre="costes-por-vehiculo"
+          filtros={{ desde: datos.desde, hasta: datos.hasta, centro_id: centroId, tipo_id: tipoId }}
+        />
+      </Group>
       <Table.ScrollContainer minWidth={700}>
         <Table striped highlightOnHover verticalSpacing={6}>
           <Table.Thead>

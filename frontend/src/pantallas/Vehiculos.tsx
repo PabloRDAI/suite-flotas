@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useCentros, useTiposVehiculo, useVehiculos } from '../api/consultas.ts'
 import type { EstadoVehiculo as Estado } from '../api/tipos.ts'
+import { BotonExportar } from '../componentes/BotonExportar.tsx'
 import { Cargando, ErrorCarga } from '../componentes/Carga.tsx'
 import { EstadoVehiculo } from '../componentes/Indicadores.tsx'
 import { formatoKm } from '../util/formato.ts'
@@ -98,6 +99,13 @@ export default function Vehiculos() {
           onChange={(e) => setIncluirBajas(e.currentTarget.checked)}
           mb={8}
         />
+        <Group ml="auto">
+          <BotonExportar
+            ruta="/vehiculos/exportar"
+            nombre="vehiculos"
+            filtros={{ centro_id: centroId, tipo_id: tipoId, estado, buscar: texto.trim(), incluir_bajas: incluirBajas }}
+          />
+        </Group>
       </Group>
 
       {vehiculos.isPending && <Cargando />}

@@ -14,6 +14,8 @@ from app.models import EstadoPlan, PlanMantenimiento, TareaPlan, TipoVehiculo, U
 from app.routers.vehiculos import vehiculo_de_mi_empresa
 from app.schemas import PlanCrear, PlanEditar, PlanSalida, PrevisionItem, PreventivoSalida, RealizacionCrear
 from app.servicios import preventivos as servicio
+from app.servicios.etiquetas import etiqueta
+from app.servicios.excel import Columna, libro_xlsx, respuesta_xlsx
 
 router = APIRouter(tags=["mantenimiento"])
 
@@ -136,6 +138,22 @@ def prevision_de_preventivos(
 ) -> list[PrevisionItem]:
     """Lo que toca en los próximos 30 días o 2.000 km (y lo ya vencido), por urgencia."""
     return servicio.prevision(db, usuario.empresa_id, date.today(), centro_id=centro_id, tipo_id=tipo_id)
+
+
+@router.get("/preventivos/prevision/exportar")
+def exportar_prevision(usuario: UsuarioActual, db: Db, centro_id: int | None = None, tipo_id: int | None = None) -> Response:
+    """GEN-06: la previsión de preventivos en Excel, por urgencia y con los mismos filtros."""
+    columnas = [
+        Columna("Matrícula", 12), Columna("Plan", 24), Columna("Situación", 11), Columna("Motivo", 40),
+        Columna("Próxima fecha", 13, "fecha"), Columna("Días restantes", 13, "entero"), Columna("Próximos km", 13, "entero"),
+        Columna("Km restantes", 13, "entero"), Columna("Km actuales", 12, "entero"), Columna("Tareas", 50),
+    ]
+    filas = [
+        [p.matricula, p.plan_nombre, etiqueta(p.situacion), p.motivo, p.proxima_fecha, p.dias_restantes, p.proximos_km,
+         p.km_restantes, p.km_actuales, "; ".join(p.tareas)]
+        for p in prevision_de_preventivos(usuario, db, centro_id=centro_id, tipo_id=tipo_id)
+    ]
+    return respuesta_xlsx(libro_xlsx("Previsión", columnas, filas), "prevision-preventivos")
 
 
 # --- Preventivos de un vehículo ----------------------------------------------

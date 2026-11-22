@@ -26,6 +26,7 @@ import { useAverias, useCrearOT, useFotoAveria, useResolverAveria } from '../api
 import type { Averia, EstadoAveria, Gravedad } from '../api/tipos.ts'
 import { useSesion } from '../auth/contexto.ts'
 import { puedeGestionarTaller } from '../auth/permisos.ts'
+import { BotonExportar } from '../componentes/BotonExportar.tsx'
 import { Cargando, ErrorCarga } from '../componentes/Carga.tsx'
 import { EstadoVehiculo } from '../componentes/Indicadores.tsx'
 
@@ -75,6 +76,9 @@ export default function Averias() {
           w={200}
           aria-label="Gravedad"
         />
+        <Group ml="auto">
+          <BotonExportar ruta="/averias/exportar" nombre="averias" filtros={{ abiertas: vista === 'abiertas', gravedad }} />
+        </Group>
       </Group>
 
       {averias.isPending && <Cargando />}

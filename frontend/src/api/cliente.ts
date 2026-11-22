@@ -82,3 +82,22 @@ export async function descargar(ruta: string): Promise<Blob> {
   if (!respuesta.ok) throw new ErrorApi(respuesta.status, 'No se ha podido descargar el archivo')
   return respuesta.blob()
 }
+
+/** Descarga un archivo de la API y lo guarda en el equipo (p. ej. un Excel exportado, GEN-06).
+ *  El nombre lo decide el servidor (cabecera Content-Disposition); si no viene, se usa `porDefecto`. */
+export async function guardarArchivo(ruta: string, porDefecto: string): Promise<void> {
+  const token = tokenGuardado()
+  const respuesta = await fetch(`/api${ruta}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!respuesta.ok) throw new ErrorApi(respuesta.status, 'No se ha podido descargar el archivo')
+  const nombre = /filename="([^"]+)"/.exec(respuesta.headers.get('Content-Disposition') ?? '')?.[1] ?? porDefecto
+  const url = URL.createObjectURL(await respuesta.blob())
+  // Un enlace temporal con "download": el navegador guarda el archivo en vez de abrirlo.
+  const enlace = document.createElement('a')
+  enlace.href = url
+  enlace.download = nombre
+  enlace.click()
+  URL.revokeObjectURL(url)
+}

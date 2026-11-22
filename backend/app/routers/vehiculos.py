@@ -14,8 +14,11 @@ from sqlalchemy.exc import IntegrityError
 
 from app.deps import Db, GestionFlota, UsuarioActual
 from app.models import Centro, LecturaKm, TipoVehiculo, Usuario, Vehiculo
+from app.reglas.estado_vehiculo import EstadoVehiculo
 from app.schemas import VehiculoCrear, VehiculoEditar, VehiculoSalida
 from app.servicios.estado_vehiculo import actualizar_estado
+from app.servicios.etiquetas import etiqueta
+from app.servicios.excel import Columna, libro_xlsx, respuesta_xlsx, si_no
 from app.servicios.preventivos import sincronizar_vehiculo
 
 router = APIRouter(prefix="/vehiculos", tags=["vehículos"])
@@ -111,6 +114,44 @@ def listar_vehiculos(
     if tipo_id is not None:
         consulta = consulta.where(Vehiculo.tipo_id == tipo_id)
     return [VehiculoSalida.model_validate(v) for v in db.scalars(consulta.order_by(Vehiculo.matricula))]
+
+
+def coincide_busqueda(busqueda: str, v: VehiculoSalida) -> bool:
+    """La misma búsqueda que la pantalla de vehículos: matrícula, marca o modelo, sin
+    distinguir mayúsculas ni espacios (y sin guiones en lo buscado: "1234-ABC" = "1234ABC")."""
+    buscado = "".join(c for c in busqueda.lower() if not c.isspace() and c != "-")
+    return buscado in "".join(f"{v.matricula}{v.marca}{v.modelo}".lower().split())
+
+
+@router.get("/exportar")
+def exportar_vehiculos(
+    usuario: UsuarioActual,
+    db: Db,
+    centro_id: int | None = None,
+    tipo_id: int | None = None,
+    incluir_bajas: bool = False,
+    estado: EstadoVehiculo | None = None,
+    buscar: str | None = None,
+) -> Response:
+    """GEN-06: el listado de vehículos en Excel, con los mismos filtros que la pantalla."""
+    vehiculos = [
+        v
+        for v in listar_vehiculos(usuario, db, centro_id=centro_id, tipo_id=tipo_id, incluir_bajas=incluir_bajas)
+        if (estado is None or v.estado == estado) and (not buscar or coincide_busqueda(buscar, v))
+    ]
+    centros = dict(db.execute(select(Centro.id, Centro.nombre).where(Centro.empresa_id == usuario.empresa_id)).tuples().all())
+    tipos = dict(db.execute(select(TipoVehiculo.id, TipoVehiculo.nombre).where(TipoVehiculo.empresa_id == usuario.empresa_id)).tuples().all())
+    columnas = [
+        Columna("Matrícula", 12), Columna("Tipo", 14), Columna("Centro", 20), Columna("Marca", 14), Columna("Modelo", 18),
+        Columna("Año", 8, "entero"), Columna("Capacidad", 11, "entero"), Columna("Combustible", 12),
+        Columna("Km", 12, "entero"), Columna("Estado", 13), Columna("Activo", 8),
+    ]
+    filas = [
+        [v.matricula, tipos.get(v.tipo_id), centros.get(v.centro_id), v.marca, v.modelo, v.anio, v.capacidad,
+         etiqueta(v.combustible), v.km_actuales, etiqueta(v.estado), si_no(v.activo)]
+        for v in vehiculos
+    ]
+    return respuesta_xlsx(libro_xlsx("Vehículos", columnas, filas), "vehiculos")
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

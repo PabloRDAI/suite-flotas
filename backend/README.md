@@ -195,6 +195,7 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | POST | `/ordenes-trabajo/{id}/iniciar`, `/cerrar`, `/cancelar` | admin, taller | Flujo abierta → en curso → cerrada (con `km` y `fecha`) o cancelada |
 | POST/DELETE | `/ordenes-trabajo/{id}/lineas` | admin, taller | Líneas de coste: mano de obra, recambio o externo. Con `recambio_id`, la descripción y el precio salen del catálogo si no se envían (MAN-09) |
 | GET | `/recambios` | todos | Catálogo de recambios (filtros `buscar`, `incluir_bajas`) |
+| GET | `…/exportar` | todos | Excel (.xlsx) de un listado con sus filtros (GEN-06): `/vehiculos`, `/personas`, `/averias`, `/ordenes-trabajo`, `/preventivos/prevision`, `/recambios` y `/panel/indicadores` |
 | POST/PATCH/DELETE | `/recambios`, `/recambios/{id}` | admin, taller | Alta, edición y baja lógica. Referencia única en la empresa (409) |
 | GET | `/preventivos/prevision` | todos | Previsión (MAN-02): vencidos y lo que toca en 30 días o 2.000 km, por urgencia (filtros `centro_id`, `tipo_id`) |
 | POST | `/vehiculos/{id}/preventivos/{plan_id}/realizado` | admin, taller | Registrar que se hizo (fecha y km) y recalcular |
@@ -260,6 +261,13 @@ registran como lectura (validada con FLO-05), la avería queda resuelta y, si es
 recalcula el próximo. Cancelar devuelve la avería a "comunicada". Mientras una OT que inmoviliza
 está abierta, el vehículo está "en taller". Coste = suma de las líneas (cantidad × precio), con
 `Decimal` y redondeo a céntimos; la BD exige km y fecha en las OT cerradas.
+
+**Exportar a Excel (GEN-06):** cada listado tiene `…/exportar`, que llama a la MISMA función del
+listado con los mismos filtros y, si la pantalla filtra algo en el navegador (búsqueda, estado,
+documentación), acepta también ese filtro con la misma regla; así el Excel trae lo que se ve. Formato
+común en `app/servicios/excel.py` (openpyxl): cabecera fija con autofiltro, fechas `dd/mm/aaaa` en hora
+de España, importes como números con formato de euros y textos en español (`app/servicios/etiquetas.py`).
+Los textos se fuerzan a texto: un `=` al principio nunca se convierte en fórmula (inyección de fórmulas).
 
 **Catálogo de recambios (MAN-09):** referencia (en mayúsculas, única en la empresa), nombre y
 precio, sin stock. Al añadir un recambio del catálogo a una OT, su precio se **copia** a la línea

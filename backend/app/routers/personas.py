@@ -5,6 +5,7 @@
 - Los vencimientos usan el mismo servicio y las mismas reglas que los de vehículo.
 """
 
+import unicodedata
 from datetime import date
 
 from fastapi import APIRouter, HTTPException, Response, status
@@ -15,6 +16,8 @@ from app.models import AplicaA, Centro, Persona, Puesto, Usuario, Vencimiento
 from app.reglas.vencimientos import Semaforo
 from app.schemas import PersonaCrear, PersonaEditar, PersonaSalida, VencimientoCrear, VencimientoSalida
 from app.servicios import vencimientos as servicio_vencimientos
+from app.servicios.etiquetas import etiqueta
+from app.servicios.excel import Columna, libro_xlsx, respuesta_xlsx
 
 router = APIRouter(prefix="/personas", tags=["personal"])
 
@@ -79,6 +82,46 @@ def listar_personas(
         db, usuario.empresa_id, AplicaA.PERSONA, (p.id for p in personas)
     )
     return [_salida(p, servicio_vencimientos.peor_semaforo(documentos[p.id], hoy)) for p in personas]
+
+
+def _sin_tildes(texto: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", texto.lower()) if unicodedata.category(c) != "Mn")
+
+
+# Mismo orden que la pantalla: primero quien necesita atención (rojo, ámbar), después por nombre.
+_URGENCIA = {Semaforo.ROJO: 0, Semaforo.AMBAR: 1, Semaforo.VERDE: 2}
+
+
+@router.get("/exportar")
+def exportar_personas(
+    usuario: UsuarioActual,
+    db: Db,
+    centro_id: int | None = None,
+    puesto: Puesto | None = None,
+    incluir_bajas: bool = False,
+    semaforo: Semaforo | None = None,
+    buscar: str | None = None,
+) -> Response:
+    """GEN-06: el listado del personal en Excel, con los mismos filtros y orden que la pantalla."""
+    buscado = (buscar or "").strip().lower()
+    personas = sorted(
+        (
+            p
+            for p in listar_personas(usuario, db, centro_id=centro_id, puesto=puesto, incluir_bajas=incluir_bajas)
+            if (semaforo is None or p.semaforo == semaforo) and buscado in p.nombre.lower()
+        ),
+        key=lambda p: (_URGENCIA[p.semaforo], _sin_tildes(p.nombre)),
+    )
+    centros = dict(db.execute(select(Centro.id, Centro.nombre).where(Centro.empresa_id == usuario.empresa_id)).tuples().all())
+    columnas = [
+        Columna("Nombre", 30), Columna("Puesto", 13), Columna("Centro", 20), Columna("Fecha de alta", 13, "fecha"),
+        Columna("Documentación", 20), Columna("Fecha de baja", 13, "fecha"),
+    ]
+    filas = [
+        [p.nombre, etiqueta(p.puesto), centros.get(p.centro_id), p.fecha_alta, etiqueta(p.semaforo), p.fecha_baja]
+        for p in personas
+    ]
+    return respuesta_xlsx(libro_xlsx("Personal", columnas, filas), "personal")
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

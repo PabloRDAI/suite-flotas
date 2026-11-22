@@ -32,6 +32,7 @@ import { useSesion } from '../auth/contexto.ts'
 import { puedeGestionarTaller } from '../auth/permisos.ts'
 import { BotonCrearOTPlan } from '../componentes/BotonCrearOTPlan.tsx'
 import { BotonRealizado } from '../componentes/BotonRealizado.tsx'
+import { BotonExportar } from '../componentes/BotonExportar.tsx'
 import { Cargando, ErrorCarga } from '../componentes/Carga.tsx'
 import { IndicadorPreventivo, TipoOrden } from '../componentes/Indicadores.tsx'
 import { formatoEuros, formatoFecha, formatoKm } from '../util/formato.ts'
@@ -71,8 +72,9 @@ export default function Taller() {
 // --- Tablero de OT por estado ------------------------------------------------
 
 function Tablero({ gestiona }: { gestiona: boolean }) {
+  const desde = hace30Dias()
   const abiertas = useOrdenes({ abiertas: true })
-  const cerradas = useOrdenes({ cerradasDesde: hace30Dias() })
+  const cerradas = useOrdenes({ cerradasDesde: desde })
   const [nueva, setNueva] = useState(false)
 
   if (abiertas.isPending || cerradas.isPending) return <Cargando />
@@ -86,13 +88,15 @@ function Tablero({ gestiona }: { gestiona: boolean }) {
   ]
   return (
     <Stack>
-      {gestiona && (
-        <Group justify="flex-end">
+      <Group justify="flex-end">
+        {/* El Excel trae lo mismo que el tablero: abiertas, en curso y cerradas en 30 días. */}
+        <BotonExportar ruta="/ordenes-trabajo/exportar" nombre="ordenes-de-trabajo" filtros={{ abiertas: true, cerradas_desde: desde }} />
+        {gestiona && (
           <Button leftSection={<IconPlus size={16} />} onClick={() => setNueva(true)}>
             Nueva OT
           </Button>
-        </Group>
-      )}
+        )}
+      </Group>
       {/* En el móvil las columnas se apilan una debajo de otra. */}
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
         {columnas.map(({ titulo, color, ordenes }) => (
@@ -239,6 +243,7 @@ function Prevision({ gestiona }: { gestiona: boolean }) {
         <Group gap="sm" align="end">
           <Select label="Centro" placeholder="Todos" clearable data={centros.data?.map((c) => ({ value: String(c.id), label: c.nombre })) ?? []} value={centroId} onChange={setCentroId} w={180} />
           <Select label="Tipo" placeholder="Todos" clearable data={tipos.data?.map((t) => ({ value: String(t.id), label: t.nombre })) ?? []} value={tipoId} onChange={setTipoId} w={160} />
+          <BotonExportar ruta="/preventivos/prevision/exportar" nombre="prevision-preventivos" filtros={{ centro_id: centroId, tipo_id: tipoId }} />
         </Group>
       </Group>
       {prevision.isPending && <Cargando />}

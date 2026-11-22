@@ -32,6 +32,8 @@ from app.schemas import (
 from app.routers.vehiculos import vehiculo_de_mi_empresa
 from app.servicios import ordenes as servicio
 from app.servicios.estado_vehiculo import actualizar_estado
+from app.servicios.etiquetas import etiqueta
+from app.servicios.excel import Columna, libro_xlsx, respuesta_xlsx
 from app.servicios.preventivos import recalcular, tareas_de
 
 router = APIRouter(prefix="/ordenes-trabajo", tags=["mantenimiento"])
@@ -127,6 +129,42 @@ def listar(
     if cerradas_desde is not None:
         consulta = consulta.where(OrdenTrabajo.estado == EstadoOT.CERRADA, OrdenTrabajo.fecha_cierre >= cerradas_desde)
     return servicio.salidas(db, consulta.order_by(OrdenTrabajo.abierta_en.desc(), OrdenTrabajo.id.desc()))
+
+
+@router.get("/exportar")
+def exportar(
+    usuario: UsuarioActual,
+    db: Db,
+    abiertas: bool = False,
+    estado: EstadoOT | None = None,
+    tipo: TipoOT | None = None,
+    vehiculo_id: int | None = None,
+    cerradas_desde: date | None = None,
+) -> Response:
+    """GEN-06: las OT en Excel, con su coste desglosado.
+
+    Mismos filtros que el listado, con una diferencia para poder exportar el tablero de
+    taller tal como se ve: si se piden ?abiertas=true y ?cerradas_desde=… a la vez, salen
+    las abiertas Y las cerradas desde esa fecha (en el listado serían excluyentes).
+    """
+    if abiertas and cerradas_desde is not None:
+        ordenes = listar(usuario, db, abiertas=True, estado=estado, tipo=tipo, vehiculo_id=vehiculo_id)
+        ordenes += listar(usuario, db, estado=estado, tipo=tipo, vehiculo_id=vehiculo_id, cerradas_desde=cerradas_desde)
+        ordenes.sort(key=lambda o: (o.abierta_en, o.id), reverse=True)
+    else:
+        ordenes = listar(usuario, db, abiertas, estado, tipo, vehiculo_id, cerradas_desde)
+    columnas = [
+        Columna("OT n.º", 8, "entero"), Columna("Matrícula", 12), Columna("Tipo", 12), Columna("Origen", 15),
+        Columna("Estado", 11), Columna("Descripción", 45), Columna("Responsable", 22), Columna("Abierta", 17, "fecha_hora"),
+        Columna("Cierre", 11, "fecha"), Columna("Km al cierre", 12, "entero"), Columna("Mano de obra", 13, "euros"),
+        Columna("Recambios", 12, "euros"), Columna("Externos", 12, "euros"), Columna("Total", 12, "euros"),
+    ]
+    filas = [
+        [o.id, o.matricula, etiqueta(o.tipo), etiqueta(o.origen), etiqueta(o.estado), o.descripcion, o.responsable_nombre,
+         o.abierta_en, o.fecha_cierre, o.km_cierre, o.coste.mano_obra, o.coste.recambios, o.coste.externos, o.coste.total]
+        for o in ordenes
+    ]
+    return respuesta_xlsx(libro_xlsx("Órdenes de trabajo", columnas, filas), "ordenes-de-trabajo")
 
 
 @router_historial.get("/{vehiculo_id}/historial")

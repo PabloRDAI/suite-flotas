@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from app.deps import Db, GestionTaller, UsuarioActual
 from app.models import Recambio, Usuario
 from app.schemas import RecambioCrear, RecambioEditar, RecambioSalida
+from app.servicios.excel import Columna, libro_xlsx, respuesta_xlsx, si_no
 
 router = APIRouter(prefix="/recambios", tags=["recambios"])
 
@@ -57,6 +58,14 @@ def listar_recambios(
 ) -> list[RecambioSalida]:
     """Catálogo ordenado por nombre. ?buscar=… filtra por referencia o nombre."""
     return [RecambioSalida.model_validate(r) for r in consultar_recambios(db, usuario, buscar, incluir_bajas)]
+
+
+@router.get("/exportar")
+def exportar_recambios(usuario: UsuarioActual, db: Db, buscar: str | None = None, incluir_bajas: bool = False) -> Response:
+    """GEN-06: el catálogo en Excel, con los mismos filtros que la pantalla."""
+    columnas = [Columna("Referencia", 16), Columna("Nombre", 40), Columna("Precio", 12, "euros"), Columna("Activo", 8)]
+    filas = [[r.referencia, r.nombre, r.precio, si_no(r.activo)] for r in consultar_recambios(db, usuario, buscar, incluir_bajas)]
+    return respuesta_xlsx(libro_xlsx("Recambios", columnas, filas), "recambios")
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

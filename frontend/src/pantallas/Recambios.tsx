@@ -10,6 +10,7 @@ import { useBajaRecambio, useGuardarRecambio, useRecambios } from '../api/consul
 import type { Recambio } from '../api/tipos.ts'
 import { useSesion } from '../auth/contexto.ts'
 import { puedeGestionarTaller } from '../auth/permisos.ts'
+import { BotonExportar } from '../componentes/BotonExportar.tsx'
 import { Cargando, ErrorCarga } from '../componentes/Carga.tsx'
 import { formatoEuros } from '../util/formato.ts'
 
@@ -55,11 +56,14 @@ export default function Recambios() {
           w={{ base: '100%', sm: 240 }}
         />
         <Switch label="Incluir los dados de baja" checked={incluirBajas} onChange={(e) => setIncluirBajas(e.currentTarget.checked)} mb={8} />
-        {gestiona && (
-          <Button leftSection={<IconPlus size={16} />} onClick={() => setEditando(null)} ml="auto">
-            Nuevo recambio
-          </Button>
-        )}
+        <Group ml="auto">
+          <BotonExportar ruta="/recambios/exportar" nombre="recambios" filtros={{ buscar: texto.trim(), incluir_bajas: incluirBajas }} />
+          {gestiona && (
+            <Button leftSection={<IconPlus size={16} />} onClick={() => setEditando(null)}>
+              Nuevo recambio
+            </Button>
+          )}
+        </Group>
       </Group>
 
       {recambios.isPending && <Cargando />}

@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useCentros, usePersonas } from '../api/consultas.ts'
 import type { Semaforo } from '../api/tipos.ts'
+import { BotonExportar } from '../componentes/BotonExportar.tsx'
 import { Cargando, ErrorCarga } from '../componentes/Carga.tsx'
 import { IndicadorSemaforo } from '../componentes/Indicadores.tsx'
 import { formatoFecha, nombresPuesto } from '../util/formato.ts'
@@ -89,6 +90,13 @@ export default function Personal() {
           w={{ base: '100%', sm: 160 }}
         />
         <Switch label="Incluir bajas" checked={incluirBajas} onChange={(e) => setIncluirBajas(e.currentTarget.checked)} mb={8} />
+        <Group ml="auto">
+          <BotonExportar
+            ruta="/personas/exportar"
+            nombre="personal"
+            filtros={{ buscar: texto.trim(), puesto, centro_id: centroId, semaforo: documentacion, incluir_bajas: incluirBajas }}
+          />
+        </Group>
       </Group>
 
       {personas.isPending && <Cargando />}

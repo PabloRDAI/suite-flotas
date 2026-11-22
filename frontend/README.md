@@ -21,13 +21,17 @@ frontend/src/
 │   └── sesion.tsx      ProveedorSesion (login/logout) y RequiereSesion (rutas protegidas)
 ├── componentes/        Layout, indicadores (semáforo, estado), carga/error, Documentacion,
 │                       HistorialAsignaciones, AsignarConductor, BotonRealizado, BotonCrearOTPlan
-│                       e IndicadoresMantenimiento (cifras, barra de reparto y tabla de costes)
+│                       IndicadoresMantenimiento (cifras, barra de reparto y tabla de costes)
+│                       y BotonExportar (descarga el Excel de un listado con sus filtros)
 ├── pantallas/          Inicio (según el rol), Login, Panel, Vehiculos, FichaVehiculo, Personal, FichaPersona,
 │                       Taller, OrdenTrabajo, Recambios, Averias, ComunicarAveria, EstadoSistema
 └── util/formato.ts     Fechas, km y números en español
 ```
 
 ## Pantallas
+
+Vehículos, Personal, Averías, Recambios, el tablero y la previsión del Taller y la tabla de costes del
+Panel tienen un botón **Exportar a Excel** que descarga lo que se ve, con los filtros aplicados (GEN-06).
 
 | URL | Pantalla |
 |---|---|

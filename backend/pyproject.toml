@@ -14,6 +14,8 @@ dependencies = [
     "pyjwt>=2.9",                # tokens de sesión firmados (JWT)
     "email-validator>=2.2",      # validar el formato de los emails (pydantic EmailStr)
     "python-multipart>=0.0.18",  # recibir formularios con archivos (foto de las averías)
+    "openpyxl>=3.1",             # leer y escribir Excel (.xlsx): exportar listados e importar datos
+    "tzdata>=2024.1",            # zonas horarias (Europe/Madrid) también en Windows
 ]
 
 [project.optional-dependencies]
