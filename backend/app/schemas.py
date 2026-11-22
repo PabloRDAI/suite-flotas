@@ -547,6 +547,43 @@ class HistorialSalida(BaseModel):
     ordenes: list[HistorialItem]  # de la más reciente a la más antigua
 
 
+# --- Indicadores de mantenimiento (MAN-08) -----------------------------------
+
+
+class IndicadoresVehiculo(BaseModel):
+    vehiculo_id: int
+    matricula: str
+    coste: float  # OT cerradas en el periodo
+    km_recorridos: int
+    coste_por_km: float | None  # €/km (None sin km)
+    averias: int  # comunicadas en el periodo
+    dias_inmovilizado: int
+    ot_preventivas: int
+    ot_correctivas: int
+
+
+class IndicadoresFlota(BaseModel):
+    coste: float
+    coste_preventivo: float
+    coste_correctivo: float
+    km_recorridos: int
+    coste_por_km: float | None
+    averias: int
+    dias_inmovilizado: int
+    ot_cerradas: int
+    ot_preventivas: int
+    ot_correctivas: int
+    pct_preventivo_ot: float | None  # % de OT cerradas que son preventivas
+    pct_preventivo_coste: float | None  # % del coste que es preventivo
+
+
+class IndicadoresSalida(BaseModel):
+    desde: date
+    hasta: date
+    flota: IndicadoresFlota
+    vehiculos: list[IndicadoresVehiculo]  # de mayor a menor coste
+
+
 class VehiculoPanel(BaseModel):
     """Un vehículo en el panel, con su aptitud ya calculada."""
 

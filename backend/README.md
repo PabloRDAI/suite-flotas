@@ -15,7 +15,8 @@ backend/
 │   ├── schemas.py     Esquemas Pydantic: lo que entra y sale por la API
 │   ├── reglas/        Motor de reglas en Python puro (sin BD): estado_vehiculo.py (FLO-03),
 │   │                  km.py (FLO-05), vencimientos.py (FLO-06/07), asignaciones.py (PER-03/04),
-│   │                  preventivo.py (MAN-01/02), ordenes.py (MAN-05/06)
+│   │                  preventivo.py (MAN-01/02), ordenes.py (MAN-05/06),
+│   │                  indicadores.py (MAN-08)
 │   ├── servicios/     Unen las reglas con la BD (estado del vehículo, preventivos, demo…)
 │   │                  y adjuntos.py: guardar y servir fotos con seguridad
 │   ├── routers/       Endpoints agrupados por área (auth, vehiculos, lecturas_km…)
@@ -144,6 +145,7 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 |---|---|---|---|
 | GET | `/salud` | público | 200 si la API y la BD funcionan; 503 si la BD no responde |
 | GET | `/panel` | todos | Panel de flota: contadores, vehículos con aptitud y alertas de averías, documentación y preventivos (filtros `centro_id`, `tipo_id`) |
+| GET | `/panel/indicadores` | todos | Indicadores de mantenimiento (MAN-08) del periodo `desde`–`hasta` (por defecto, los últimos 6 meses): coste total y por vehículo, coste por km, averías, días de inmovilización y % de preventivo (filtros `centro_id`, `tipo_id`) |
 | POST | `/auth/login` | público | Email + contraseña → token de sesión |
 | GET | `/auth/yo` | todos | Datos del usuario conectado |
 | GET | `/centros` | todos | Centros activos de la empresa |
@@ -213,6 +215,13 @@ usan la misma tabla, el mismo servicio (`app/servicios/vencimientos.py`) y las m
 **Panel de flota (FLO-04):** `GET /panel` calcula contadores, tabla y alertas sobre la misma lista de
 vehículos activos (los totales coinciden con el listado filtrado) con solo dos consultas a la BD;
 un test comprueba que responde en menos de 1 s con 150 vehículos.
+
+**Indicadores de mantenimiento (MAN-08):** `GET /panel/indicadores`, sobre los vehículos activos.
+Coste = líneas de las OT **cerradas** en el periodo; km recorridos = última lectura hasta el fin
+menos la última antes del inicio; días de inmovilización = días **distintos** en que el vehículo
+estuvo parado por una avería o una OT que inmoviliza (si se solapan, cuentan una vez); % preventivo,
+por número de OT y por coste. Cálculos en `app/reglas/indicadores.py`. Los tests comprueban que
+coinciden con un cálculo hecho a mano, por otro camino, sobre los datos de demostración.
 
 **Asignaciones (PER-03, PER-04):** un vehículo tiene como máximo un conductor habitual a la vez
 (las temporales pueden coincidir). Se comprueba en `app/reglas/asignaciones.py` y, como última

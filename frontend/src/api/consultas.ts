@@ -18,6 +18,7 @@ import type {
   OrdenTrabajo,
   Concepto,
   TipoOT,
+  Indicadores,
   Panel,
   Persona,
   PrevisionItem,
@@ -40,6 +41,8 @@ export const claves = {
   vencimientos: (id: number) => ['vehiculo', id, 'vencimientos'] as const,
   aptitud: (id: number) => ['vehiculo', id, 'aptitud'] as const,
   panel: (centroId: string | null, tipoId: string | null) => ['panel', { centroId, tipoId }] as const,
+  // Empieza por 'panel': al invalidar ['panel'] (cerrar una OT, una avería…) también se refrescan.
+  indicadores: (centroId: string | null, tipoId: string | null) => ['panel', 'indicadores', { centroId, tipoId }] as const,
   asignacionesVehiculo: (id: number) => ['vehiculo', id, 'asignaciones'] as const,
   personas: (incluirBajas: boolean) => ['personas', { incluirBajas }] as const,
   persona: (id: number) => ['persona', id] as const,
@@ -131,6 +134,19 @@ export const usePanel = (centroId: string | null, tipoId: string | null) =>
       return api<Panel>(`/panel${filtros.size ? `?${filtros}` : ''}`)
     },
     placeholderData: (anterior) => anterior, // al cambiar de filtro, mantiene los datos previos mientras carga
+  })
+
+/** Indicadores de mantenimiento (MAN-08) de los últimos 6 meses, con los mismos filtros que el panel. */
+export const useIndicadores = (centroId: string | null, tipoId: string | null) =>
+  useQuery({
+    queryKey: claves.indicadores(centroId, tipoId),
+    queryFn: () => {
+      const filtros = new URLSearchParams()
+      if (centroId) filtros.set('centro_id', centroId)
+      if (tipoId) filtros.set('tipo_id', tipoId)
+      return api<Indicadores>(`/panel/indicadores${filtros.size ? `?${filtros}` : ''}`)
+    },
+    placeholderData: (anterior) => anterior,
   })
 
 export const useYo = (activa: boolean) =>

@@ -1,4 +1,5 @@
-// Panel de flota (FLO-04): contadores por estado, alertas y tabla filtrable.
+// Panel de flota (FLO-04): contadores por estado, alertas, tabla filtrable e
+// indicadores de mantenimiento (MAN-08).
 //
 // Todo llega en UNA petición (GET /panel) calculada en el servidor. Las tarjetas de
 // contadores filtran la tabla al pulsarlas, así que número y filas siempre coinciden.
@@ -25,6 +26,7 @@ import { useCentros, usePanel, useTiposVehiculo } from '../api/consultas.ts'
 import type { AlertaPanel, Panel as DatosPanel, VehiculoPanel } from '../api/tipos.ts'
 import { Cargando, ErrorCarga } from '../componentes/Carga.tsx'
 import { EstadoVehiculo, IndicadorSemaforo } from '../componentes/Indicadores.tsx'
+import { IndicadoresMantenimiento } from '../componentes/IndicadoresMantenimiento.tsx'
 import { formatoFecha, formatoKm } from '../util/formato.ts'
 
 // Qué muestra la tabla según la tarjeta pulsada.
@@ -92,6 +94,7 @@ export default function Panel() {
             nombreCentro={new Map(centros.data?.map((c) => [c.id, c.nombre]))}
             nombreTipo={new Map(tipos.data?.map((t) => [t.id, t.nombre]))}
           />
+          <IndicadoresMantenimiento centroId={centroId} tipoId={tipoId} />
         </>
       )}
     </Stack>

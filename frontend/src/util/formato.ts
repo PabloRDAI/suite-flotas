@@ -46,3 +46,13 @@ export const nombresRol: Record<string, string> = {
   taller: 'Taller',
   conductor: 'Conductor',
 }
+
+const porcentaje = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+
+/** 76.2 -> "76,2 %" */
+export const formatoPorcentaje = (valor: number): string => `${porcentaje.format(valor)} %`
+
+const eurosKm = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', minimumFractionDigits: 3, maximumFractionDigits: 3 })
+
+/** 0.045 -> "0,045 €/km" */
+export const formatoEurosKm = (valor: number): string => `${eurosKm.format(valor)}/km`

@@ -20,7 +20,8 @@ frontend/src/
 │   ├── permisos.ts     Qué botones ve cada rol (reflejo de los permisos de la API)
 │   └── sesion.tsx      ProveedorSesion (login/logout) y RequiereSesion (rutas protegidas)
 ├── componentes/        Layout, indicadores (semáforo, estado), carga/error, Documentacion,
-│                       HistorialAsignaciones, AsignarConductor, BotonRealizado y BotonCrearOTPlan
+│                       HistorialAsignaciones, AsignarConductor, BotonRealizado, BotonCrearOTPlan
+│                       e IndicadoresMantenimiento (cifras, barra de reparto y tabla de costes)
 ├── pantallas/          Inicio (según el rol), Login, Panel, Vehiculos, FichaVehiculo, Personal, FichaPersona,
 │                       Taller, OrdenTrabajo, Averias, ComunicarAveria, EstadoSistema
 └── util/formato.ts     Fechas, km y números en español
@@ -32,7 +33,7 @@ frontend/src/
 |---|---|
 | `/login` | Inicio de sesión |
 | `/` | Inicio según el rol: el conductor va a comunicar avería; el resto, al panel |
-| `/panel` | Panel de flota (inicio): contadores por estado que filtran la tabla, alertas (documentación y preventivos) y aptitud de cada vehículo |
+| `/panel` | Panel de flota (inicio): contadores por estado que filtran la tabla, alertas (documentación y preventivos), aptitud de cada vehículo e indicadores de mantenimiento de los últimos 6 meses (coste, €/km, averías, días parado, reparto preventivo/correctivo y tabla por vehículo, MAN-08) |
 | `/vehiculos` | Listado con búsqueda y filtros por centro, tipo, estado e incluir bajas |
 | `/vehiculos/:id` | Ficha: aptitud para salir, conductor/a habitual y pestañas de datos, documentación (semáforo), asignaciones (historial, asignar y finalizar), mantenimiento (planes preventivos, "Crear OT" e historial de OT con costes, MAN-07) y km (con formulario de lectura) |
 | `/personal` | Listado del personal con semáforo de documentación y filtros por puesto, centro y documentación |

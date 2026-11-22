@@ -244,6 +244,39 @@ export type Panel = {
   alertas: AlertaPanel[]
 }
 
+/** Indicadores de mantenimiento (MAN-08) de un periodo. Importes en euros. */
+export type IndicadoresVehiculo = {
+  vehiculo_id: number
+  matricula: string
+  coste: number
+  km_recorridos: number
+  coste_por_km: number | null
+  averias: number
+  dias_inmovilizado: number
+  ot_preventivas: number
+  ot_correctivas: number
+}
+
+export type Indicadores = {
+  desde: string
+  hasta: string
+  flota: {
+    coste: number
+    coste_preventivo: number
+    coste_correctivo: number
+    km_recorridos: number
+    coste_por_km: number | null
+    averias: number
+    dias_inmovilizado: number
+    ot_cerradas: number
+    ot_preventivas: number
+    ot_correctivas: number
+    pct_preventivo_ot: number | null
+    pct_preventivo_coste: number | null
+  }
+  vehiculos: IndicadoresVehiculo[] // de mayor a menor coste
+}
+
 export type Aptitud = {
   apto: boolean
   motivos: string[]
