@@ -6,7 +6,10 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useCentros, useTiposVehiculo, useVehiculos } from '../api/consultas.ts'
 import type { EstadoVehiculo as Estado } from '../api/tipos.ts'
+import { useSesion } from '../auth/contexto.ts'
+import { puedeGestionarFlota } from '../auth/permisos.ts'
 import { BotonExportar } from '../componentes/BotonExportar.tsx'
+import { BotonImportar } from '../componentes/BotonImportar.tsx'
 import { Cargando, ErrorCarga } from '../componentes/Carga.tsx'
 import { EstadoVehiculo } from '../componentes/Indicadores.tsx'
 import { formatoKm } from '../util/formato.ts'
@@ -19,6 +22,7 @@ const OPCIONES_ESTADO: { value: Estado; label: string }[] = [
 ]
 
 export default function Vehiculos() {
+  const { usuario } = useSesion()
   const navegar = useNavigate()
   const [incluirBajas, setIncluirBajas] = useState(false)
   const [texto, setTexto] = useState('')
@@ -100,6 +104,7 @@ export default function Vehiculos() {
           mb={8}
         />
         <Group ml="auto">
+          {puedeGestionarFlota(usuario) && <BotonImportar que="vehiculos" />}
           <BotonExportar
             ruta="/vehiculos/exportar"
             nombre="vehiculos"

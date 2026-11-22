@@ -10,11 +10,14 @@ export const borrarToken = (): void => localStorage.removeItem(CLAVE_TOKEN)
 /** Error de la API con su código HTTP y el mensaje ("detail") que envía el backend. */
 export class ErrorApi extends Error {
   readonly status: number
+  /** El "detail" tal cual, para errores con datos (p. ej. la lista de filas de una importación). */
+  readonly detalle: unknown
 
-  constructor(status: number, mensaje: string) {
+  constructor(status: number, mensaje: string, detalle?: unknown) {
     super(mensaje)
     this.name = 'ErrorApi'
     this.status = status
+    this.detalle = detalle
   }
 }
 
@@ -29,6 +32,9 @@ export const registrarAlCaducarSesion = (funcion: () => void): void => {
 function mensajeDeError(cuerpo: unknown, status: number): string {
   const detalle = (cuerpo as { detail?: unknown } | null)?.detail
   if (typeof detalle === 'string') return detalle
+  // Errores con datos (importación): { mensaje, errores: [...] }.
+  const mensaje = (detalle as { mensaje?: unknown } | null)?.mensaje
+  if (typeof mensaje === 'string') return mensaje
   // 422 de validación de Pydantic: lista de errores por campo.
   if (Array.isArray(detalle) && detalle.length > 0) {
     return detalle.map((e: { msg?: string }) => e.msg ?? 'Dato no válido').join('. ')
@@ -63,7 +69,7 @@ export async function api<T>(
   const cuerpo: unknown = await respuesta.json().catch(() => null)
   if (!respuesta.ok) {
     if (respuesta.status === 401 && token) alCaducarSesion()
-    throw new ErrorApi(respuesta.status, mensajeDeError(cuerpo, respuesta.status))
+    throw new ErrorApi(respuesta.status, mensajeDeError(cuerpo, respuesta.status), (cuerpo as { detail?: unknown } | null)?.detail)
   }
   return cuerpo as T
 }

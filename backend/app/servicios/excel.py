@@ -31,6 +31,7 @@ FORMATOS = {
     "fecha_hora": "DD/MM/YYYY HH:MM",
     "euros": '#,##0.00" €"',
     "entero": "#,##0",
+    "anio": "0",  # sin separador de miles: 2021, no 2.021
     "decimal": "#,##0.00",
     "euros_km": '#,##0.000" €/km"',  # coste por km
     "texto": "@",
@@ -54,11 +55,10 @@ def _celda(valor: Valor) -> Valor:
     return valor
 
 
-def libro_xlsx(hoja: str, columnas: Sequence[Columna], filas: Iterable[Sequence[Valor]]) -> bytes:
-    """Un libro de una hoja con cabecera y filas. Devuelve el archivo en bytes."""
-    libro = Workbook()
-    ws = libro.active
-    ws.title = hoja[:31]  # Excel no admite nombres de hoja de más de 31 caracteres
+Hoja = tuple[str, Sequence[Columna], Iterable[Sequence[Valor]]]  # (nombre, columnas, filas)
+
+
+def _escribir_hoja(ws, columnas: Sequence[Columna], filas: Iterable[Sequence[Valor]]) -> None:  # type: ignore[no-untyped-def]
     ws.append([c.titulo for c in columnas])
     for celda in ws[1]:
         celda.font = Font(bold=True)
@@ -74,9 +74,22 @@ def libro_xlsx(hoja: str, columnas: Sequence[Columna], filas: Iterable[Sequence[
         ws.column_dimensions[get_column_letter(i)].width = columna.ancho
     ws.freeze_panes = "A2"  # la cabecera queda fija al bajar
     ws.auto_filter.ref = ws.dimensions  # flechas de filtro en la cabecera
+
+
+def libro_varias_hojas(hojas: Sequence[Hoja]) -> bytes:
+    """Un libro con varias hojas (p. ej. la plantilla de importación y sus instrucciones)."""
+    libro = Workbook()
+    libro.remove(libro.active)
+    for nombre, columnas, filas in hojas:
+        _escribir_hoja(libro.create_sheet(nombre[:31]), columnas, filas)  # Excel: máx. 31 caracteres
     salida = BytesIO()
     libro.save(salida)
     return salida.getvalue()
+
+
+def libro_xlsx(hoja: str, columnas: Sequence[Columna], filas: Iterable[Sequence[Valor]]) -> bytes:
+    """Un libro de una hoja con cabecera y filas. Devuelve el archivo en bytes."""
+    return libro_varias_hojas([(hoja, columnas, filas)])
 
 
 def respuesta_xlsx(contenido: bytes, nombre: str) -> Response:

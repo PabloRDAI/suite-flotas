@@ -195,6 +195,8 @@ así que desactivarlo o cambiarle el rol surte efecto al momento.
 | POST | `/ordenes-trabajo/{id}/iniciar`, `/cerrar`, `/cancelar` | admin, taller | Flujo abierta → en curso → cerrada (con `km` y `fecha`) o cancelada |
 | POST/DELETE | `/ordenes-trabajo/{id}/lineas` | admin, taller | Líneas de coste: mano de obra, recambio o externo. Con `recambio_id`, la descripción y el precio salen del catálogo si no se envían (MAN-09) |
 | GET | `/recambios` | todos | Catálogo de recambios (filtros `buscar`, `incluir_bajas`) |
+| GET | `/importar/vehiculos/plantilla`, `/importar/personas/plantilla` | admin, tráfico | Plantilla .xlsx con 2 filas de ejemplo importables y una hoja de instrucciones (GEN-05) |
+| POST | `/importar/vehiculos`, `/importar/personas` | admin, tráfico | Importa un .xlsx o .csv (campo `archivo`). Todo o nada: 201 `{importados}` o 422 con la lista `{fila, columna, motivo}` |
 | GET | `…/exportar` | todos | Excel (.xlsx) de un listado con sus filtros (GEN-06): `/vehiculos`, `/personas`, `/averias`, `/ordenes-trabajo`, `/preventivos/prevision`, `/recambios` y `/panel/indicadores` |
 | POST/PATCH/DELETE | `/recambios`, `/recambios/{id}` | admin, taller | Alta, edición y baja lógica. Referencia única en la empresa (409) |
 | GET | `/preventivos/prevision` | todos | Previsión (MAN-02): vencidos y lo que toca en 30 días o 2.000 km, por urgencia (filtros `centro_id`, `tipo_id`) |
@@ -261,6 +263,14 @@ registran como lectura (validada con FLO-05), la avería queda resuelta y, si es
 recalcula el próximo. Cancelar devuelve la avería a "comunicada". Mientras una OT que inmoviliza
 está abierta, el vehículo está "en taller". Coste = suma de las líneas (cantidad × precio), con
 `Decimal` y redondeo a céntimos; la BD exige km y fecha en las OT cerradas.
+
+**Importar desde Excel o CSV (GEN-05):** `app/servicios/importacion.py`. Primero se valida TODO el
+archivo (columnas por su nombre, sin fijarse en mayúsculas ni tildes; centro y tipo por su nombre;
+combustible y puesto por su texto; matrícula libre y no repetida en el archivo; y después el mismo
+esquema que el alta), acumulando todos los errores de cada fila. Si hay alguno, 422 con la lista y
+no se escribe nada; si no, se crean todos en una transacción (un vehículo importado es igual que uno
+dado de alta: lectura de km inicial y planes preventivos, `app/servicios/vehiculos.py`). CSV en
+UTF-8 o Windows-1252 (el de Excel en español) y separado por `;` o `,`. Máximo 2 MB y 1.000 filas.
 
 **Exportar a Excel (GEN-06):** cada listado tiene `…/exportar`, que llama a la MISMA función del
 listado con los mismos filtros y, si la pantalla filtra algo en el navegador (búsqueda, estado,

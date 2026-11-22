@@ -6,7 +6,10 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useCentros, usePersonas } from '../api/consultas.ts'
 import type { Semaforo } from '../api/tipos.ts'
+import { useSesion } from '../auth/contexto.ts'
+import { puedeGestionarFlota } from '../auth/permisos.ts'
 import { BotonExportar } from '../componentes/BotonExportar.tsx'
+import { BotonImportar } from '../componentes/BotonImportar.tsx'
 import { Cargando, ErrorCarga } from '../componentes/Carga.tsx'
 import { IndicadorSemaforo } from '../componentes/Indicadores.tsx'
 import { formatoFecha, nombresPuesto } from '../util/formato.ts'
@@ -14,6 +17,7 @@ import { formatoFecha, nombresPuesto } from '../util/formato.ts'
 const ORDEN: Record<Semaforo, number> = { rojo: 0, ambar: 1, verde: 2 }
 
 export default function Personal() {
+  const { usuario } = useSesion()
   const [incluirBajas, setIncluirBajas] = useState(false)
   const [texto, setTexto] = useState('')
   const [puesto, setPuesto] = useState<string | null>(null)
@@ -91,6 +95,7 @@ export default function Personal() {
         />
         <Switch label="Incluir bajas" checked={incluirBajas} onChange={(e) => setIncluirBajas(e.currentTarget.checked)} mb={8} />
         <Group ml="auto">
+          {puedeGestionarFlota(usuario) && <BotonImportar que="personas" />}
           <BotonExportar
             ruta="/personas/exportar"
             nombre="personal"

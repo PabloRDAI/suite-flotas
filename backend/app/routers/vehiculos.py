@@ -13,13 +13,14 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.deps import Db, GestionFlota, UsuarioActual
-from app.models import Centro, LecturaKm, TipoVehiculo, Usuario, Vehiculo
+from app.models import Centro, TipoVehiculo, Usuario, Vehiculo
 from app.reglas.estado_vehiculo import EstadoVehiculo
 from app.schemas import VehiculoCrear, VehiculoEditar, VehiculoSalida
 from app.servicios.estado_vehiculo import actualizar_estado
 from app.servicios.etiquetas import etiqueta
 from app.servicios.excel import Columna, libro_xlsx, respuesta_xlsx, si_no
 from app.servicios.preventivos import sincronizar_vehiculo
+from app.servicios.vehiculos import alta_vehiculo
 
 router = APIRouter(prefix="/vehiculos", tags=["vehículos"])
 
@@ -143,7 +144,7 @@ def exportar_vehiculos(
     tipos = dict(db.execute(select(TipoVehiculo.id, TipoVehiculo.nombre).where(TipoVehiculo.empresa_id == usuario.empresa_id)).tuples().all())
     columnas = [
         Columna("Matrícula", 12), Columna("Tipo", 14), Columna("Centro", 20), Columna("Marca", 14), Columna("Modelo", 18),
-        Columna("Año", 8, "entero"), Columna("Capacidad", 11, "entero"), Columna("Combustible", 12),
+        Columna("Año", 8, "anio"), Columna("Capacidad", 11, "entero"), Columna("Combustible", 12),
         Columna("Km", 12, "entero"), Columna("Estado", 13), Columna("Activo", 8),
     ]
     filas = [
@@ -167,20 +168,11 @@ def crear_vehiculo(datos: VehiculoCrear, usuario: GestionFlota, db: Db) -> Vehic
     _comprobar_centro_y_tipo(db, usuario, datos.centro_id, datos.tipo_id)
     _comprobar_matricula_libre(db, usuario, datos.matricula)
 
-    vehiculo = Vehiculo(empresa_id=usuario.empresa_id, **datos.model_dump())
-    db.add(vehiculo)
-    _guardar(db, solo_flush=True)  # INSERT ya, para conocer vehiculo.id
-
-    db.add(
-        LecturaKm(
-            empresa_id=usuario.empresa_id,
-            vehiculo_id=vehiculo.id,
-            fecha=date.today(),
-            km=vehiculo.km_actuales,
-            registrada_por_id=usuario.id,
-        )
-    )
-    sincronizar_vehiculo(db, vehiculo, date.today())  # MAN-01: los planes de su tipo empiezan a contar
+    try:
+        vehiculo = alta_vehiculo(db, usuario.empresa_id, usuario.id, datos, date.today())
+    except IntegrityError as error:  # dos altas simultáneas con la misma matrícula
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un vehículo con esa matrícula") from error
     db.commit()
     return VehiculoSalida.model_validate(vehiculo)
 

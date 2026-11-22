@@ -14,6 +14,7 @@ from app.routers import (
     auth,
     averias,
     centros,
+    importacion,
     lecturas_km,
     ordenes_trabajo,
     panel,
@@ -43,6 +44,7 @@ app.include_router(averias.router)
 app.include_router(ordenes_trabajo.router)
 app.include_router(ordenes_trabajo.router_historial)
 app.include_router(recambios.router)
+app.include_router(importacion.router)
 
 
 @app.get("/salud", tags=["sistema"])

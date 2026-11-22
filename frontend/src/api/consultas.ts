@@ -401,3 +401,23 @@ export function useBajaRecambio() {
     onSuccess: () => void cliente.invalidateQueries({ queryKey: ['recambios'] }),
   })
 }
+
+// --- Importación desde Excel o CSV (GEN-05) -----------------------------------
+
+export type QueImportar = 'vehiculos' | 'personas'
+
+/** Sube el archivo. Todo o nada: si hay errores, ErrorApi.detalle trae { mensaje, errores }. */
+export function useImportar(que: QueImportar) {
+  const cliente = useQueryClient()
+  return useMutation({
+    mutationFn: (archivo: File) => {
+      const formulario = new FormData()
+      formulario.append('archivo', archivo)
+      return api<{ importados: number }>(`/importar/${que}`, { metodo: 'POST', formulario })
+    },
+    onSuccess: () => {
+      // Listados y panel con los registros nuevos.
+      for (const clave of [[que], ['panel'], ['prevision']]) void cliente.invalidateQueries({ queryKey: clave })
+    },
+  })
+}

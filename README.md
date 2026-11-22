@@ -88,7 +88,7 @@ backend contra un PostgreSQL temporal, y el linter y la compilación del fronten
 | F1 Flota | Multiempresa, roles, vehículos, km, vencimientos, panel de flota | ✅ Hecha |
 | F2 Personal | Personas, vencimientos personales, asignaciones | ✅ Hecha |
 | F3 GMAO | Planes preventivos, averías, órdenes de trabajo, costes e indicadores | ✅ Hecha |
-| F4 Pulido | Importar/exportar Excel, despliegue de la demo | ⏳ |
+| F4 Pulido | Importar/exportar Excel, catálogo de recambios, despliegue de la demo | ⏳ Falta el despliegue |
 
 ## Licencia
 

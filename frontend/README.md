@@ -22,7 +22,8 @@ frontend/src/
 ├── componentes/        Layout, indicadores (semáforo, estado), carga/error, Documentacion,
 │                       HistorialAsignaciones, AsignarConductor, BotonRealizado, BotonCrearOTPlan
 │                       IndicadoresMantenimiento (cifras, barra de reparto y tabla de costes)
-│                       y BotonExportar (descarga el Excel de un listado con sus filtros)
+│                       BotonExportar (descarga el Excel de un listado con sus filtros)
+│                       y BotonImportar (plantilla, subida y tabla de errores por fila)
 ├── pantallas/          Inicio (según el rol), Login, Panel, Vehiculos, FichaVehiculo, Personal, FichaPersona,
 │                       Taller, OrdenTrabajo, Recambios, Averias, ComunicarAveria, EstadoSistema
 └── util/formato.ts     Fechas, km y números en español
@@ -32,6 +33,8 @@ frontend/src/
 
 Vehículos, Personal, Averías, Recambios, el tablero y la previsión del Taller y la tabla de costes del
 Panel tienen un botón **Exportar a Excel** que descarga lo que se ve, con los filtros aplicados (GEN-06).
+Vehículos y Personal tienen además **Importar** (gerente y tráfico, GEN-05): descarga de la plantilla,
+subida del Excel o CSV y, si hay errores, la lista de filas con su motivo (no se importa nada a medias).
 
 | URL | Pantalla |
 |---|---|

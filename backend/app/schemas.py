@@ -428,6 +428,13 @@ Cantidad = Annotated[Decimal, Field(gt=0, le=100_000, max_digits=10, decimal_pla
 Precio = Annotated[Decimal, Field(ge=0, le=1_000_000, max_digits=10, decimal_places=2)]
 
 
+# --- Importación desde Excel o CSV (GEN-05) -----------------------------------
+
+
+class ImportacionSalida(BaseModel):
+    importados: int
+
+
 # --- Catálogo de recambios (MAN-09) ------------------------------------------
 
 # La referencia se guarda sin espacios a los lados y en mayúsculas: "fa-123" y "FA-123" son la misma.
